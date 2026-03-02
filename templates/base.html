@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Lora:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://unpkg.com/htmx.org@2"></script>
+
+    <script>
+        // ── Theme Definitions ──
+        const THEMES = {
+            bloomberg: {
+                name: 'Bloomberg', icon: '\uD83D\uDCCA',
+                vars: {
+                    '--bg-page': '#0f1218', '--bg-white': '#1a1f2e', '--bg-hover': '#242b3d',
+                    '--border': '#2a3348', '--border-subtle': '#222838',
+                    '--accent': '#00d26a', '--accent-light': '#0d2e1e', '--accent-hover': '#00b85c',
+                    '--positive': '#00d26a', '--positive-light': '#0d2e1e',
+                    '--negative': '#ff4757', '--negative-light': '#2e1418',
+                    '--text-primary': '#e8eaed', '--text-secondary': '#8b95a5', '--text-muted': '#556070',
+                    '--font-display': "'IBM Plex Mono', monospace", '--font-body': "'IBM Plex Sans', sans-serif",
+                    '--radius': '6px', '--radius-sm': '4px', '--radius-pill': '6px',
+                    '--shadow-sm': '0 1px 3px rgba(0,0,0,0.4)', '--shadow': '0 2px 8px rgba(0,0,0,0.5)', '--shadow-md': '0 4px 16px rgba(0,0,0,0.6)',
+                },
+                bodyWeight: '400', bodySize: '14px',
+                chart: { accent: '#00d26a', positive: '#00d26a', negative: '#ff4757', grid: 'rgba(42,51,72,0.8)',
+                    palette: ['#00d26a','#00b4d8','#ff6b6b','#ffd93d','#c77dff','#ff8fab','#72efdd','#ffb703','#8338ec','#fb5607','#06d6a0','#118ab2'],
+                    tooltipBg: '#1a1f2e', tooltipTitle: '#e8eaed', tooltipBody: '#8b95a5', tooltipBorder: '#2a3348', muted: '#e2e5ea' },
+            },
+            apple: {
+                name: 'Apple', icon: '\uD83E\uDDE0',
+                vars: {
+                    '--bg-page': '#f5f5f7', '--bg-white': '#ffffff', '--bg-hover': '#f0f0f2',
+                    '--border': '#d2d2d7', '--border-subtle': '#e8e8ed',
+                    '--accent': '#0071e3', '--accent-light': '#e8f2ff', '--accent-hover': '#0062cc',
+                    '--positive': '#28cd41', '--positive-light': '#eafbec',
+                    '--negative': '#ff3b30', '--negative-light': '#fff1f0',
+                    '--text-primary': '#1d1d1f', '--text-secondary': '#6e6e73', '--text-muted': '#aeaeb2',
+                    '--font-display': "'Outfit', sans-serif", '--font-body': "'Outfit', sans-serif",
+                    '--radius': '14px', '--radius-sm': '10px', '--radius-pill': '50px',
+                    '--shadow-sm': '0 1px 3px rgba(0,0,0,0.04)', '--shadow': '0 2px 10px rgba(0,0,0,0.06)', '--shadow-md': '0 4px 20px rgba(0,0,0,0.08)',
+                },
+                bodyWeight: '400', bodySize: '15px',
+                chart: { accent: '#0071e3', positive: '#28cd41', negative: '#ff3b30', grid: 'rgba(210,210,215,0.6)',
+                    palette: ['#0071e3','#28cd41','#ff2d55','#af52de','#5ac8fa','#ff9500','#ff3b30','#30d158','#bf5af2','#ff9f0a','#64d2ff','#ff375f'],
+                    tooltipBg: '#ffffff', tooltipTitle: '#1d1d1f', tooltipBody: '#6e6e73', tooltipBorder: '#d2d2d7', muted: '#e2e5ea' },
+            },
+            cute: {
+                name: 'Cute', icon: '\uD83C\uDF38',
+                vars: {
+                    '--bg-page': '#fef5f0', '--bg-white': '#ffffff', '--bg-hover': '#fff0ea',
+                    '--border': '#f0ddd5', '--border-subtle': '#f5ebe5',
+                    '--accent': '#ff6b9d', '--accent-light': '#fff0f5', '--accent-hover': '#ee5a8a',
+                    '--positive': '#10b981', '--positive-light': '#ecfdf5',
+                    '--negative': '#f43f5e', '--negative-light': '#fff1f2',
+                    '--text-primary': '#3f2d23', '--text-secondary': '#8b7060', '--text-muted': '#bba090',
+                    '--font-display': "'Fredoka', sans-serif", '--font-body': "'Nunito', sans-serif",
+                    '--radius': '20px', '--radius-sm': '14px', '--radius-pill': '50px',
+                    '--shadow-sm': '0 2px 8px rgba(180,120,100,0.06)', '--shadow': '0 4px 16px rgba(180,120,100,0.1)', '--shadow-md': '0 8px 24px rgba(180,120,100,0.12)',
+                },
+                bodyWeight: '600', bodySize: '15px',
+                chart: { accent: '#ff6b9d', positive: '#10b981', negative: '#f43f5e', grid: 'rgba(240,221,213,0.8)',
+                    palette: ['#ff6b9d','#10b981','#f472b6','#a78bfa','#60a5fa','#fbbf24','#f43f5e','#34d399','#c084fc','#fb923c','#60a5fa','#f472b6'],
+                    tooltipBg: '#ffffff', tooltipTitle: '#3f2d23', tooltipBody: '#8b7060', tooltipBorder: '#f0ddd5', muted: '#e2e5ea' },
+            },
+            vintage: {
+                name: 'Vintage', icon: '\uD83D\uDCDC',
+                vars: {
+                    '--bg-page': '#faf6f0', '--bg-white': '#fffdf8', '--bg-hover': '#f5ede3',
+                    '--border': '#e0d5c5', '--border-subtle': '#eae2d6',
+                    '--accent': '#b47a4a', '--accent-light': '#faf0e5', '--accent-hover': '#9a6840',
+                    '--positive': '#5a8a60', '--positive-light': '#f0f7f0',
+                    '--negative': '#b54545', '--negative-light': '#fdf0f0',
+                    '--text-primary': '#3a2e22', '--text-secondary': '#7a6a55', '--text-muted': '#a89880',
+                    '--font-display': "'Lora', serif", '--font-body': "'Source Sans 3', sans-serif",
+                    '--radius': '10px', '--radius-sm': '6px', '--radius-pill': '8px',
+                    '--shadow-sm': '0 1px 4px rgba(120,90,50,0.06)', '--shadow': '0 2px 10px rgba(120,90,50,0.1)', '--shadow-md': '0 4px 16px rgba(120,90,50,0.12)',
+                },
+                bodyWeight: '400', bodySize: '15px',
+                chart: { accent: '#b47a4a', positive: '#5a8a60', negative: '#b54545', grid: 'rgba(224,213,197,0.8)',
+                    palette: ['#b47a4a','#5a8a60','#c25450','#8b6fa0','#5689a0','#c9a227','#a0522d','#6b8e6b','#957dad','#cc7722','#4682b4','#cd5c5c'],
+                    tooltipBg: '#fffdf8', tooltipTitle: '#3a2e22', tooltipBody: '#7a6a55', tooltipBorder: '#e0d5c5', muted: '#e2e5ea' },
+            },
+        };
+
+        // Apply saved theme IMMEDIATELY to avoid flash
+        const _savedTheme = localStorage.getItem('theme') || 'apple';
+        const _t = THEMES[_savedTheme] || THEMES.apple;
+        (function() {
+            const r = document.documentElement.style;
+            Object.entries(_t.vars).forEach(([k, v]) => r.setProperty(k, v));
+            document.documentElement.dataset.theme = _savedTheme;
+        })();
+
+        // Global chart helpers — templates reference these instead of hardcoded colors
+        const CHART_ACCENT = _t.chart.accent;
+        const CHART_POSITIVE = _t.chart.positive;
+        const CHART_NEGATIVE = _t.chart.negative;
+        const CHART_GRID = _t.chart.grid;
+        const CHART_PALETTE = _t.chart.palette;
+        const CHART_MUTED = _t.chart.muted;
+        function accentRGBA(a) {
+            const h = CHART_ACCENT.replace('#','');
+            return 'rgba('+parseInt(h.substring(0,2),16)+','+parseInt(h.substring(2,4),16)+','+parseInt(h.substring(4,6),16)+','+a+')';
+        }
+    </script>
+
+    <style>
+        :root {
+            --bg-page: #f5f5f7; --bg-white: #ffffff; --bg-hover: #f0f0f2;
+            --border: #d2d2d7; --border-subtle: #e8e8ed;
+            --accent: #0071e3; --accent-light: #e8f2ff; --accent-hover: #0062cc;
+            --positive: #28cd41; --positive-light: #eafbec;
+            --negative: #ff3b30; --negative-light: #fff1f0;
+            --text-primary: #1d1d1f; --text-secondary: #6e6e73; --text-muted: #aeaeb2;
+            --font-display: 'Outfit', sans-serif; --font-body: 'Outfit', sans-serif;
+            --radius: 14px; --radius-sm: 10px; --radius-pill: 50px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.04); --shadow: 0 2px 10px rgba(0,0,0,0.06); --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg-page);
+            color: var(--text-primary);
+            min-height: 100vh;
+            font-weight: 400;
+            font-size: 15px;
+            letter-spacing: 0.01em;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Navigation ── */
+        nav {
+            background: var(--bg-white);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2.5rem;
+            display: flex;
+            align-items: center;
+            height: 60px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow-sm);
+        }
+
+        nav .brand {
+            font-family: var(--font-display);
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--accent);
+            margin-right: 2.5rem;
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        nav .brand .logo {
+            width: 28px;
+            height: 28px;
+            background: var(--accent);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        nav .brand .logo svg {
+            width: 17px;
+            height: 17px;
+        }
+        nav .brand .wordmark span {
+            font-weight: 400;
+            opacity: 0.6;
+        }
+
+        nav .nav-links {
+            display: flex;
+            gap: 0.25rem;
+            flex: 1;
+        }
+
+        nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 0.4rem 0.75rem;
+            border-radius: var(--radius-pill);
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        nav a:hover {
+            color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        nav a.active {
+            color: var(--accent);
+            background: var(--accent-light);
+            font-weight: 600;
+        }
+
+        /* ── Container ── */
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 1.75rem 2.5rem;
+        }
+
+        /* ── Page Header ── */
+        .page-header {
+            display: flex;
+            align-items: baseline;
+            gap: 1rem;
+            margin-bottom: 1.75rem;
+        }
+
+        .page-header h2 {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: var(--bg-white);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow);
+            transform: translateY(-1px);
+        }
+
+        .card h3 {
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        /* ── Grid ── */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+
+        /* ── Stat Cards ── */
+        .stat-card {
+            background: var(--bg-white);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+            padding: 1.25rem 1.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: var(--accent);
+            border-radius: var(--radius) var(--radius) 0 0;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .stat-card:hover {
+            box-shadow: var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        .stat-card:hover::before { opacity: 1; }
+
+        .stat-card .label {
+            font-family: var(--font-display);
+            font-size: 0.78rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .value {
+            font-family: var(--font-display);
+            font-size: 1.9rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            color: var(--text-primary);
+        }
+
+        .stat-card .change {
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-top: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        /* ── Colors ── */
+        .positive { color: var(--positive); }
+        .negative { color: var(--negative); }
+        .accent { color: var(--accent); }
+        .muted { color: var(--text-secondary); }
+
+        .bg-positive { background: var(--positive-light); color: var(--positive); }
+        .bg-negative { background: var(--negative-light); color: var(--negative); }
+        .bg-accent { background: var(--accent-light); color: var(--accent); }
+
+        /* ── Tables ── */
+        table { width: 100%; border-collapse: collapse; }
+
+        th {
+            text-align: left;
+            padding: 0.6rem 0.85rem;
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 0.65rem 0.85rem;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+        }
+
+        tr { transition: background 0.15s ease; }
+        tr:hover td {
+            background: var(--accent-light);
+            color: var(--text-primary);
+        }
+
+        td.amount {
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ── Forms ── */
+        input, select {
+            padding: 0.5rem 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-white);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 0.88rem;
+            font-weight: 500;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-light);
+        }
+
+        input::placeholder { color: var(--text-muted); }
+
+        label {
+            display: block;
+            margin-bottom: 0.3rem;
+            font-family: var(--font-display);
+            font-size: 0.78rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+        }
+
+        .form-group { margin-bottom: 1.25rem; }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            background: var(--bg-white);
+            color: var(--text-secondary);
+        }
+
+        .btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-light);
+        }
+
+        .btn:active { transform: translateY(0); }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            border-color: transparent;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            color: white;
+            border-color: transparent;
+        }
+
+        /* ── Month Selector ── */
+        .month-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .month-selector .btn {
+            padding: 0.3rem 0.65rem;
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        /* ── Chart Container ── */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-height: 380px;
+        }
+
+        /* ── Flash Messages ── */
+        .flash {
+            padding: 0.75rem 1.1rem;
+            border-radius: var(--radius-sm);
+            margin-bottom: 1.25rem;
+            font-size: 0.88rem;
+            font-weight: 600;
+            border: 1px solid;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .flash-success { background: var(--positive-light); border-color: var(--positive); color: var(--positive); }
+        .flash-error { background: var(--negative-light); border-color: var(--negative); color: var(--negative); }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Tag / Badge ── */
+        .tag {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: var(--radius-pill);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        /* ── Code / Path ── */
+        code {
+            background: var(--bg-page);
+            border: 1px solid var(--border);
+            padding: 0.4rem 0.7rem;
+            border-radius: var(--radius-sm);
+            display: block;
+            font-family: 'IBM Plex Mono', 'SF Mono', monospace;
+            font-size: 0.82rem;
+            color: var(--accent);
+        }
+
+        /* ── Animations ── */
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes popUp {
+            0% { opacity: 0; transform: translateY(16px) scale(0.96); }
+            60% { opacity: 1; transform: translateY(-4px) scale(1.01); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .animate-in {
+            animation: slideUp 0.35s ease forwards;
+            opacity: 0;
+        }
+
+        [data-theme="cute"] .animate-in {
+            animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        .animate-in:nth-child(1) { animation-delay: 0.03s; }
+        .animate-in:nth-child(2) { animation-delay: 0.06s; }
+        .animate-in:nth-child(3) { animation-delay: 0.09s; }
+        .animate-in:nth-child(4) { animation-delay: 0.12s; }
+        .animate-in:nth-child(5) { animation-delay: 0.15s; }
+        .animate-in:nth-child(6) { animation-delay: 0.18s; }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-page); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* ── Sortable Tables ── */
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 1.4rem;
+            transition: color 0.15s;
+        }
+        th.sortable:hover { color: var(--accent); }
+        th.sortable::after {
+            content: '\2195';
+            position: absolute;
+            right: 0.3rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.55rem;
+            opacity: 0.35;
+        }
+        th.sortable.asc::after { content: '\25B2'; opacity: 0.8; color: var(--accent); }
+        th.sortable.desc::after { content: '\25BC'; opacity: 0.8; color: var(--accent); }
+
+        /* ── Theme Picker ── */
+        .theme-picker { position: relative; margin-left: 0.75rem; }
+
+        .theme-toggle {
+            width: 32px; height: 32px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-white);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm);
+        }
+        .theme-toggle:hover {
+            border-color: var(--accent);
+            box-shadow: var(--shadow);
+        }
+
+        .theme-dropdown {
+            display: none;
+            position: absolute;
+            top: 42px; right: 0;
+            background: var(--bg-white);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.5rem;
+            box-shadow: var(--shadow-md);
+            z-index: 200;
+            width: 200px;
+        }
+        .theme-dropdown.open { display: block; }
+
+        .theme-option {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            width: 100%;
+            padding: 0.55rem 0.65rem;
+            border: none;
+            border-radius: var(--radius-sm);
+            background: transparent;
+            cursor: pointer;
+            font-family: var(--font-body);
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.15s ease;
+            text-align: left;
+        }
+        .theme-option:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        .theme-option.active {
+            background: var(--accent-light);
+            color: var(--accent);
+            font-weight: 600;
+        }
+        .theme-option .theme-dots {
+            display: flex; gap: 3px;
+        }
+        .theme-option .theme-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+        }
+    </style>
+
+    <script>
+        // ── Chart.js Defaults (from active theme) ──
+        Chart.defaults.color = _t.chart.tooltipBody;
+        Chart.defaults.borderColor = _t.vars['--border'];
+        Chart.defaults.font.family = _t.vars['--font-body'];
+        Chart.defaults.font.size = 13;
+        Chart.defaults.font.weight = 500;
+        Chart.defaults.plugins.legend.labels.usePointStyle = true;
+        Chart.defaults.plugins.legend.labels.pointStyleWidth = 8;
+        Chart.defaults.plugins.legend.labels.padding = 14;
+        Chart.defaults.plugins.tooltip.backgroundColor = _t.chart.tooltipBg;
+        Chart.defaults.plugins.tooltip.titleColor = _t.chart.tooltipTitle;
+        Chart.defaults.plugins.tooltip.bodyColor = _t.chart.tooltipBody;
+        Chart.defaults.plugins.tooltip.borderColor = _t.chart.tooltipBorder;
+        Chart.defaults.plugins.tooltip.borderWidth = 1;
+        Chart.defaults.plugins.tooltip.cornerRadius = parseInt(_t.vars['--radius-sm']) || 8;
+        Chart.defaults.plugins.tooltip.padding = 10;
+        Chart.defaults.plugins.tooltip.titleFont = { family: _t.vars['--font-display'], weight: 600 };
+        Chart.defaults.plugins.tooltip.bodyFont = { family: _t.vars['--font-body'], weight: 500 };
+    </script>
+    <script>
+        // ── Global Month Picker ──
+        function getSelectedMonth() {
+            return localStorage.getItem('selectedMonth') || new Date().toISOString().slice(0, 7);
+        }
+        function setSelectedMonth(m) {
+            localStorage.setItem('selectedMonth', m);
+            document.getElementById('globalMonthPicker').value = m;
+            window.dispatchEvent(new CustomEvent('monthChanged', { detail: { month: m } }));
+        }
+        function changeGlobalMonth(delta) {
+            const d = new Date(getSelectedMonth() + '-01');
+            d.setMonth(d.getMonth() + delta);
+            setSelectedMonth(d.toISOString().slice(0, 7));
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const picker = document.getElementById('globalMonthPicker');
+            picker.value = getSelectedMonth();
+            picker.addEventListener('change', function() { setSelectedMonth(this.value); });
+        });
+    </script>
+    <script>
+        // ── Sortable Tables ──
+        function makeSortable(tableId) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+            const thead = table.querySelector('thead');
+            if (!thead) return;
+            const ths = thead.querySelectorAll('th');
+            ths.forEach((th, colIdx) => {
+                th.classList.add('sortable');
+                th.addEventListener('click', function() {
+                    const isAsc = th.classList.contains('asc');
+                    ths.forEach(h => h.classList.remove('asc', 'desc'));
+                    th.classList.add(isAsc ? 'desc' : 'asc');
+                    const dir = isAsc ? -1 : 1;
+                    const tbody = table.querySelector('tbody');
+                    const rows = Array.from(tbody.querySelectorAll('tr'));
+                    rows.sort((a, b) => {
+                        const aCell = a.children[colIdx];
+                        const bCell = b.children[colIdx];
+                        if (!aCell || !bCell) return 0;
+                        let aVal = aCell.textContent.trim();
+                        let bVal = bCell.textContent.trim();
+                        const aNum = parseFloat(aVal.replace(/[$,%]/g, '').replace(/,/g, ''));
+                        const bNum = parseFloat(bVal.replace(/[$,%]/g, '').replace(/,/g, ''));
+                        if (!isNaN(aNum) && !isNaN(bNum)) return (aNum - bNum) * dir;
+                        return aVal.localeCompare(bVal) * dir;
+                    });
+                    rows.forEach(row => tbody.appendChild(row));
+                });
+            });
+        }
+    </script>
+    <script>
+        // ── Theme Picker ──
+        function setTheme(name) {
+            localStorage.setItem('theme', name);
+            location.reload();
+        }
+
+        function toggleThemeDropdown() {
+            document.getElementById('themeDropdown').classList.toggle('open');
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.theme-picker')) {
+                document.getElementById('themeDropdown').classList.remove('open');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Apply body-level styles
+            document.body.style.fontWeight = _t.bodyWeight;
+            document.body.style.fontSize = _t.bodySize;
+
+            // Build dropdown
+            const dd = document.getElementById('themeDropdown');
+            const saved = localStorage.getItem('theme') || 'apple';
+            Object.entries(THEMES).forEach(([key, theme]) => {
+                const btn = document.createElement('button');
+                btn.className = 'theme-option' + (key === saved ? ' active' : '');
+                const colors = [theme.vars['--accent'], theme.vars['--bg-page'], theme.vars['--text-primary']];
+                btn.innerHTML =
+                    '<span class="theme-dots">' +
+                        colors.map(c => '<span class="theme-dot" style="background:'+c+'"></span>').join('') +
+                    '</span>' +
+                    '<span>' + theme.icon + ' ' + theme.name + '</span>';
+                btn.onclick = function(e) {
+                    e.stopPropagation();
+                    if (key !== saved) setTheme(key);
+                };
+                dd.appendChild(btn);
+            });
+
+            // Set toggle icon
+            document.getElementById('themeToggleIcon').textContent = _t.icon;
+        });
+    </script>
+</head>
+<body>
+    <nav>
+        <div class="brand">
+            <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="wordmark">my<span>finance</span></div>
+        </div>
+        <div class="nav-links">
+            <a href="/" {% if request.path == "/" %}class="active"{% endif %}>Overview</a>
+            <a href="/spending" {% if "/spending" in request.path %}class="active"{% endif %}>Spending</a>
+            <a href="/transactions" {% if "/transactions" in request.path %}class="active"{% endif %}>Transactions</a>
+            <a href="/income" {% if "/income" in request.path %}class="active"{% endif %}>Income</a>
+            <a href="/investments" {% if "/investments" in request.path %}class="active"{% endif %}>Investments</a>
+            <a href="/equity" {% if "/equity" in request.path %}class="active"{% endif %}>Equity</a>
+            <a href="/fixed" {% if "/fixed" in request.path %}class="active"{% endif %}>Housing</a>
+            <a href="/healthcare" {% if "/healthcare" in request.path %}class="active"{% endif %}>Healthcare</a>
+            <a href="/accounts" {% if "/accounts" in request.path %}class="active"{% endif %}>Accounts</a>
+            <a href="/import" {% if "/import" in request.path %}class="active"{% endif %}>Import</a>
+        </div>
+        <div class="month-selector" id="globalMonthSelector">
+            <button class="btn" onclick="changeGlobalMonth(-1)">&larr;</button>
+            <input type="month" id="globalMonthPicker">
+            <button class="btn" onclick="changeGlobalMonth(1)">&rarr;</button>
+        </div>
+        <div class="theme-picker">
+            <button class="theme-toggle" id="themeToggle" onclick="toggleThemeDropdown()" title="Change theme">
+                <span id="themeToggleIcon"></span>
+            </button>
+            <div class="theme-dropdown" id="themeDropdown"></div>
+        </div>
+    </nav>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

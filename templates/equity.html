@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Equity Compensation</h2>
+    <span class="muted" style="font-size: 0.85rem;">RSU & ESPP from Expedia Group</span>
+</div>
+
+<div id="summary-cards" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;"></div>
+
+<div class="grid-2" style="margin-bottom: 1rem;">
+    <div class="card animate-in" style="animation-delay: 0.1s;">
+        <h3>Equity Breakdown</h3>
+        <div class="chart-container" style="max-height: 280px;">
+            <canvas id="breakdownChart"></canvas>
+        </div>
+    </div>
+    <div class="card animate-in" style="animation-delay: 0.15s;">
+        <h3>RSU Grant Distribution</h3>
+        <div class="chart-container" style="max-height: 280px;">
+            <canvas id="grantChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="card animate-in" style="animation-delay: 0.2s; margin-bottom: 1rem;">
+    <h3>Unvested RSU Grants</h3>
+    <table id="grantsTable">
+        <thead>
+            <tr>
+                <th>Grant Date</th>
+                <th>Grant #</th>
+                <th>Type</th>
+                <th>Symbol</th>
+                <th style="text-align:right;">Shares</th>
+                <th style="text-align:right;">Market Price</th>
+                <th style="text-align:right;">Est. Value (Pre-Tax)</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<div class="grid-2" style="margin-bottom: 1rem;">
+    <div class="card animate-in" style="animation-delay: 0.25s;">
+        <h3>Vested Holdings</h3>
+        <table id="holdingsTable">
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th style="text-align:right;">Shares</th>
+                    <th style="text-align:right;">Price</th>
+                    <th style="text-align:right;">Market Value</th>
+                    <th style="text-align:right;">Cost Basis</th>
+                    <th style="text-align:right;">Gain/Loss</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+    <div class="card animate-in" style="animation-delay: 0.3s;">
+        <h3>Recent Vesting Activity</h3>
+        <table id="vestingTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Symbol</th>
+                    <th style="text-align:right;">Shares</th>
+                    <th style="text-align:right;">Value</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <div id="vestingSummary" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 2px solid var(--border);"></div>
+    </div>
+</div>
+
+<div id="empty-state" class="card animate-in" style="text-align:center;padding:3rem;display:none;">
+    <div style="font-size:2rem;margin-bottom:0.75rem;">&#128200;</div>
+    <div style="color:var(--text-secondary);font-size:0.95rem;">No equity compensation data yet.</div>
+    <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem;">Import an E*Trade / Morgan Stanley statement to get started.</div>
+</div>
+
+<script>
+let breakdownChart, grantChart;
+
+function loadEquity() {
+    const month = getSelectedMonth();
+    fetch('/api/equity?month=' + month)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.month) {
+                document.getElementById('empty-state').style.display = 'block';
+                document.getElementById('summary-cards').style.display = 'none';
+                document.querySelectorAll('.card.animate-in').forEach(c => {
+                    if (!c.id) c.style.display = 'none';
+                });
+                return;
+            }
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('summary-cards').style.display = '';
+            document.querySelectorAll('.card.animate-in').forEach(c => c.style.display = '');
+            renderSummary(data);
+            renderBreakdown(data);
+            renderGrantChart(data);
+            renderGrants(data.rsu_grants);
+            renderHoldings(data.vested_holdings);
+            renderVestings(data.vestings, data);
+            makeSortable('grantsTable');
+            makeSortable('holdingsTable');
+            makeSortable('vestingTable');
+        });
+}
+loadEquity();
+window.addEventListener('monthChanged', loadEquity);
+
+function renderSummary(data) {
+    const container = document.getElementById('summary-cards');
+    container.innerHTML =
+        '<div class="stat-card animate-in">' +
+            '<div class="label">Total Equity Value</div>' +
+            '<div class="value accent">$' + data.total_equity_value.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.03s">' +
+            '<div class="label">Vested Shares</div>' +
+            '<div class="value">$' + data.vested_value.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.06s">' +
+            '<div class="label">Unvested RSUs</div>' +
+            '<div class="value" style="color:#a78bfa;">$' + data.unvested_value.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+            '<div class="change muted">' + data.total_unvested_shares.toLocaleString() + ' shares</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.09s">' +
+            '<div class="label">Cash Balance</div>' +
+            '<div class="value">$' + data.cash_balance.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.12s">' +
+            '<div class="label">This Period Vesting</div>' +
+            '<div class="value positive">+$' + data.total_vested_this_period.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+            '<div class="change muted">' + data.shares_vested_this_period + ' shares</div>' +
+        '</div>';
+}
+
+function renderBreakdown(data) {
+    const ctx = document.getElementById('breakdownChart').getContext('2d');
+    if (breakdownChart) breakdownChart.destroy();
+    const values = [data.vested_value, data.unvested_value, data.cash_balance];
+    if (values.every(v => v === 0)) return;
+    breakdownChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Vested Shares', 'Unvested RSUs', 'Cash'],
+            datasets: [{
+                data: values,
+                backgroundColor: [CHART_ACCENT, '#a78bfa', CHART_MUTED],
+                borderColor: '#ffffff',
+                borderWidth: 3,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '65%',
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 16 } },
+                tooltip: { callbacks: { label: ctx => ' $' + ctx.parsed.toLocaleString(undefined, {maximumFractionDigits: 0}) } }
+            }
+        }
+    });
+}
+
+function renderGrantChart(data) {
+    const ctx = document.getElementById('grantChart').getContext('2d');
+    if (grantChart) grantChart.destroy();
+    if (!data.rsu_grants.length) return;
+    const colors = [CHART_ACCENT, '#a78bfa', '#10b981', '#fbbf24', '#f43f5e'];
+    grantChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.rsu_grants.map(g => g.grant_date.substring(0, 7)),
+            datasets: [{
+                label: 'Unvested Shares',
+                data: data.rsu_grants.map(g => g.quantity),
+                backgroundColor: data.rsu_grants.map((_, i) => colors[i % colors.length]),
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(ctx) {
+                            const g = data.rsu_grants[ctx.dataIndex];
+                            return 'Est. Value: $' + g.estimated_value.toLocaleString(undefined, {maximumFractionDigits: 0});
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: CHART_GRID }, title: { display: true, text: 'Shares' } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function emptyRow(cols, msg) {
+    return '<tr><td colspan="' + cols + '" style="text-align:center;color:var(--text-muted);padding:1.5rem;">' + msg + '</td></tr>';
+}
+
+function renderGrants(grants) {
+    const tbody = document.querySelector('#grantsTable tbody');
+    if (!grants.length) { tbody.innerHTML = emptyRow(7, 'No RSU grants found'); return; }
+    let totalShares = 0, totalValue = 0;
+    tbody.innerHTML = grants.map(g => {
+        totalShares += g.quantity;
+        totalValue += g.estimated_value;
+        return '<tr>' +
+            '<td>' + g.grant_date + '</td>' +
+            '<td style="font-family:monospace;font-size:0.82rem;color:var(--text-muted);">' + g.grant_number + '</td>' +
+            '<td><span class="tag bg-accent">' + g.type + '</span></td>' +
+            '<td style="color:var(--accent);font-weight:600;">' + g.symbol + '</td>' +
+            '<td class="amount" style="text-align:right;">' + g.quantity.toLocaleString() + '</td>' +
+            '<td class="amount" style="text-align:right;">$' + g.market_price.toFixed(2) + '</td>' +
+            '<td class="amount" style="text-align:right;color:var(--text-primary);font-weight:600;">$' + g.estimated_value.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</td>' +
+        '</tr>';
+    }).join('') +
+    '<tr style="border-top:2px solid var(--border);font-weight:600;">' +
+        '<td colspan="4" style="color:var(--text-primary);">Total Unvested</td>' +
+        '<td class="amount" style="text-align:right;color:var(--text-primary);">' + totalShares.toLocaleString() + '</td>' +
+        '<td></td>' +
+        '<td class="amount" style="text-align:right;color:var(--accent);">$' + totalValue.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</td>' +
+    '</tr>';
+}
+
+function renderHoldings(holdings) {
+    const tbody = document.querySelector('#holdingsTable tbody');
+    if (!holdings.length) { tbody.innerHTML = emptyRow(6, 'No vested shares'); return; }
+    tbody.innerHTML = holdings.map(h => {
+        const cls = h.gain_loss >= 0 ? 'positive' : 'negative';
+        const sign = h.gain_loss >= 0 ? '+' : '';
+        return '<tr>' +
+            '<td style="color:var(--accent);font-weight:600;">' + h.symbol + '</td>' +
+            '<td class="amount" style="text-align:right;">' + h.quantity.toLocaleString() + '</td>' +
+            '<td class="amount" style="text-align:right;">$' + h.price.toFixed(2) + '</td>' +
+            '<td class="amount" style="text-align:right;font-weight:600;">$' + h.market_value.toLocaleString(undefined, {maximumFractionDigits: 2}) + '</td>' +
+            '<td class="amount" style="text-align:right;">$' + h.cost_basis.toLocaleString(undefined, {maximumFractionDigits: 2}) + '</td>' +
+            '<td class="amount ' + cls + '" style="text-align:right;">' + sign + '$' + Math.abs(h.gain_loss).toFixed(2) + ' (' + (h.gain_loss_pct >= 0 ? '+' : '') + h.gain_loss_pct.toFixed(1) + '%)</td>' +
+        '</tr>';
+    }).join('');
+}
+
+function renderVestings(vestings, data) {
+    const tbody = document.querySelector('#vestingTable tbody');
+    if (!vestings.length) { tbody.innerHTML = emptyRow(4, 'No vesting events this period'); return; }
+    tbody.innerHTML = vestings.map(v =>
+        '<tr>' +
+            '<td>' + v.date + '</td>' +
+            '<td style="color:var(--accent);font-weight:600;">' + v.symbol + '</td>' +
+            '<td class="amount" style="text-align:right;">' + v.quantity.toLocaleString() + '</td>' +
+            '<td class="amount positive" style="text-align:right;">+$' + v.amount.toLocaleString(undefined, {maximumFractionDigits: 2}) + '</td>' +
+        '</tr>'
+    ).join('');
+
+    const summary = document.getElementById('vestingSummary');
+    summary.innerHTML =
+        '<div style="display:flex;justify-content:space-between;font-size:0.88rem;">' +
+            '<span style="font-weight:600;color:var(--text-primary);">Total Vested</span>' +
+            '<span style="font-weight:600;color:var(--positive);">' + data.shares_vested_this_period + ' shares / +$' + data.total_vested_this_period.toLocaleString(undefined, {maximumFractionDigits: 2}) + '</span>' +
+        '</div>';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Healthcare</h2>
+    <span class="muted" style="font-size: 0.85rem;">HSA account overview</span>
+</div>
+
+<div id="summary-cards" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;"></div>
+
+<div id="hsa-details" style="display:none;">
+    <div class="grid-2" style="margin-bottom: 1rem;">
+        <div class="card animate-in" style="animation-delay: 0.1s;">
+            <h3>Account Breakdown</h3>
+            <div class="chart-container" style="max-height: 260px;">
+                <canvas id="breakdownPie"></canvas>
+            </div>
+        </div>
+        <div class="card animate-in" style="animation-delay: 0.15s;">
+            <h3>Monthly Activity</h3>
+            <div class="chart-container" style="max-height: 260px;">
+                <canvas id="activityBar"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom: 1rem;">
+        <div class="card animate-in" style="animation-delay: 0.2s;">
+            <h3>Investment Holdings</h3>
+            <table id="holdingsTable">
+                <thead>
+                    <tr><th>Symbol</th><th style="text-align:right;">Shares</th><th style="text-align:right;">Price</th><th style="text-align:right;">Value</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div id="returnInfo" style="margin-top: 0.75rem; font-size: 0.82rem; color: var(--text-secondary);"></div>
+        </div>
+        <div class="card animate-in" style="animation-delay: 0.25s;">
+            <h3>Transactions</h3>
+            <table id="txnTable">
+                <thead>
+                    <tr><th>Date</th><th>Description</th><th>Type</th><th style="text-align:right;">Amount</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="empty-state" class="card animate-in" style="text-align:center;padding:3rem;display:none;">
+    <div style="font-size:2rem;margin-bottom:0.75rem;">&#127973;</div>
+    <div style="color:var(--text-secondary);font-size:0.95rem;">No HSA data yet.</div>
+    <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem;">Import a HealthEquity statement to get started.</div>
+</div>
+
+<script>
+let breakdownPie, activityBar;
+
+function loadHealthcare() {
+    const month = getSelectedMonth();
+    fetch('/api/healthcare?month=' + month)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.hsa) {
+                document.getElementById('empty-state').style.display = 'block';
+                document.getElementById('hsa-details').style.display = 'none';
+                document.getElementById('summary-cards').innerHTML = '';
+                return;
+            }
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('hsa-details').style.display = 'block';
+            const h = data.hsa;
+            renderSummary(h);
+            renderBreakdown(h);
+            renderActivity(h);
+            renderHoldings(h);
+            renderTransactions(h);
+            makeSortable('holdingsTable');
+            makeSortable('txnTable');
+        });
+}
+loadHealthcare();
+window.addEventListener('monthChanged', loadHealthcare);
+
+function renderSummary(h) {
+    const container = document.getElementById('summary-cards');
+    container.innerHTML =
+        '<div class="stat-card animate-in">' +
+            '<div class="label">Total Value</div>' +
+            '<div class="value positive">$' + h.total_value.toLocaleString(undefined, {minimumFractionDigits: 2}) + '</div>' +
+            '<div class="change muted">Cash + Investments</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.03s">' +
+            '<div class="label">Cash Balance</div>' +
+            '<div class="value">$' + h.cash_balance.toLocaleString(undefined, {minimumFractionDigits: 2}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.06s">' +
+            '<div class="label">Investments</div>' +
+            '<div class="value accent">$' + h.investment_value.toLocaleString(undefined, {minimumFractionDigits: 2}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.09s">' +
+            '<div class="label">Contributions</div>' +
+            '<div class="value positive">$' + h.contributions.toLocaleString(undefined, {minimumFractionDigits: 2}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.12s">' +
+            '<div class="label">Claims Paid</div>' +
+            '<div class="value negative">$' + h.claims.toLocaleString(undefined, {minimumFractionDigits: 2}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.15s">' +
+            '<div class="label">YTD Return</div>' +
+            '<div class="value ' + (h.ytd_return >= 0 ? 'positive' : 'negative') + '">' + h.ytd_return.toFixed(2) + '%</div>' +
+        '</div>';
+}
+
+function renderBreakdown(h) {
+    const ctx = document.getElementById('breakdownPie').getContext('2d');
+    if (breakdownPie) breakdownPie.destroy();
+    breakdownPie = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Cash', 'Investments'],
+            datasets: [{
+                data: [h.cash_balance, h.investment_value],
+                backgroundColor: [CHART_ACCENT, CHART_POSITIVE],
+                borderColor: '#ffffff',
+                borderWidth: 3,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '65%',
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 16 } },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = (ctx.parsed / total * 100).toFixed(1);
+                            return ' $' + ctx.parsed.toLocaleString(undefined, {minimumFractionDigits: 2}) + ' (' + pct + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderActivity(h) {
+    const ctx = document.getElementById('activityBar').getContext('2d');
+    if (activityBar) activityBar.destroy();
+    activityBar = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Contributions', 'Claims', 'Interest', 'Fees'],
+            datasets: [{
+                data: [h.contributions, h.claims, h.interest, h.fees],
+                backgroundColor: [CHART_POSITIVE, CHART_NEGATIVE, CHART_ACCENT, '#fbbf24'],
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => '$' + ctx.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2}) } }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: CHART_GRID }, ticks: { callback: v => '$' + v } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderHoldings(h) {
+    const tbody = document.querySelector('#holdingsTable tbody');
+    if (!h.holdings || h.holdings.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">No investments</td></tr>';
+    } else {
+        tbody.innerHTML = h.holdings.map(inv =>
+            '<tr>' +
+                '<td style="font-weight:600;color:var(--accent);">' + inv.symbol + '</td>' +
+                '<td style="text-align:right;">' + inv.shares.toFixed(2) + '</td>' +
+                '<td style="text-align:right;">$' + inv.price.toLocaleString(undefined, {minimumFractionDigits: 2}) + '</td>' +
+                '<td style="text-align:right;font-weight:600;">$' + inv.value.toLocaleString(undefined, {minimumFractionDigits: 2}) + '</td>' +
+            '</tr>'
+        ).join('');
+    }
+    const info = document.getElementById('returnInfo');
+    info.innerHTML =
+        '<span style="margin-right:1.5rem;">Period Return: <strong class="' + (h.period_return >= 0 ? 'positive' : 'negative') + '">' + h.period_return.toFixed(2) + '%</strong></span>' +
+        '<span>YTD Return: <strong class="' + (h.ytd_return >= 0 ? 'positive' : 'negative') + '">' + h.ytd_return.toFixed(2) + '%</strong></span>';
+}
+
+function renderTransactions(h) {
+    const tbody = document.querySelector('#txnTable tbody');
+    const catColors = {
+        'Contribution': 'positive',
+        'Healthcare': 'negative',
+        'Interest': 'accent',
+        'Fee': 'muted',
+    };
+    tbody.innerHTML = h.transactions.map(t => {
+        const cls = t.amount < 0 ? 'negative' : 'positive';
+        const catCls = catColors[t.category] || 'muted';
+        return '<tr>' +
+            '<td>' + t.date + '</td>' +
+            '<td style="color:var(--text-primary);font-weight:500;font-size:0.82rem;">' + t.description + '</td>' +
+            '<td><span class="tag bg-' + catCls + '" style="font-size:0.65rem;">' + t.category + '</span></td>' +
+            '<td class="amount ' + cls + '" style="text-align:right;">$' + t.amount.toFixed(2) + '</td>' +
+        '</tr>';
+    }).join('');
+}
+</script>
+{% endblock %}

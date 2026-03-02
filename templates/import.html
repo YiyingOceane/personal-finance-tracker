@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Import</h2>
+    <span class="muted" style="font-size: 0.85rem;">PDF &amp; CSV auto-detection</span>
+</div>
+
+{% if checklist %}
+<div class="card animate-in" style="margin-bottom: 1rem;">
+    <h3>Download Checklist</h3>
+    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">
+        Download statements from each of these, then save to the watch folder.
+    </p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.75rem;">
+        {% for inst in checklist %}
+        <div style="border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 1rem; background: var(--bg-page);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <span style="font-weight: 600; color: var(--text-primary); font-size: 0.95rem;">{{ inst.name }}</span>
+                {% if inst.last_updated %}
+                <span style="font-size: 0.75rem; color: var(--text-muted);">{{ inst.first_date }} &rarr; {{ inst.last_updated }}</span>
+                {% else %}
+                <span class="tag bg-negative" style="font-size: 0.65rem;">Never imported</span>
+                {% endif %}
+            </div>
+            {% for acct in inst.accounts %}
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0; font-size: 0.82rem;">
+                <span style="color: var(--text-secondary);">{{ acct.name }}</span>
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                    {% if acct.first_date != 'Never' %}
+                    <span style="font-size: 0.7rem; color: var(--text-muted);">{{ acct.first_date }} &rarr; {{ acct.last_date }}</span>
+                    {% endif %}
+                    <span class="tag {% if acct.last_date == 'Never' %}bg-negative{% else %}bg-accent{% endif %}" style="font-size: 0.6rem;">{{ acct.type }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="grid-2" style="margin-bottom: 1rem;">
+    <div class="card animate-in">
+        <h3>Watch Folder</h3>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">
+            Drop PDF or CSV files into this folder:
+        </p>
+        <code>{{ import_folder }}</code>
+
+        {% if pending_files %}
+        <div style="margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--border-subtle);">
+            <div style="font-size: 0.85rem; font-weight: 600; color: var(--positive); margin-bottom: 0.75rem;">
+                {{ pending_files|length }} file{{ 's' if pending_files|length > 1 }} ready
+            </div>
+            {% for f in pending_files %}
+            <div style="padding: 0.4rem 0; font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem;">
+                <span style="color: var(--accent);">&#9679;</span> {{ f }}
+            </div>
+            {% endfor %}
+            <form method="POST" action="/import/scan" style="margin-top: 1rem;">
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Import All</button>
+            </form>
+        </div>
+        {% else %}
+        <div style="margin-top: 1.25rem; padding: 1.5rem; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius-sm);">
+            <div style="color: var(--text-muted); font-size: 0.85rem;">No pending files</div>
+            <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem;">Save statements to the folder above</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card animate-in" style="animation-delay: 0.1s;">
+        <h3>CSV Profiles ({{ profiles|length }})</h3>
+        {% if profiles %}
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Institution</th><th>Type</th></tr>
+            </thead>
+            <tbody>
+                {% for p in profiles %}
+                <tr>
+                    <td style="color:var(--text-primary);font-weight:500;">{{ p.name }}</td>
+                    <td>{{ p.institution }}</td>
+                    <td><span class="tag bg-accent">{{ p.account_type }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding: 1.5rem; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius-sm);">
+            <div style="color: var(--text-muted); font-size: 0.85rem;">No CSV profiles yet</div>
+            <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem;">PDFs are auto-detected &mdash; profiles are for custom CSVs</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card animate-in" style="animation-delay: 0.2s;">
+    <h3>Add CSV Profile</h3>
+    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.25rem;">
+        For banks that export CSV files &mdash; map their column names so the app can parse them.
+        Chase &amp; Fidelity PDFs are detected automatically.
+    </p>
+    <form method="POST" action="/import/profile">
+        <div class="grid-3">
+            <div class="form-group">
+                <label>Profile Name</label>
+                <input type="text" name="profile_name" required placeholder="e.g. Chase Checking" style="width:100%;">
+            </div>
+            <div class="form-group">
+                <label>Institution</label>
+                <input type="text" name="institution" required placeholder="e.g. Chase" style="width:100%;">
+            </div>
+            <div class="form-group">
+                <label>Account Type</label>
+                <select name="account_type" style="width:100%;">
+                    <option value="checking">Checking</option>
+                    <option value="savings">Savings</option>
+                    <option value="credit_card">Credit Card</option>
+                    <option value="brokerage">Brokerage</option>
+                    <option value="mortgage">Mortgage</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid-3">
+            <div class="form-group">
+                <label>Date Column</label>
+                <input type="text" name="col_date" required placeholder="e.g. Posting Date" style="width:100%;">
+            </div>
+            <div class="form-group">
+                <label>Amount Column</label>
+                <input type="text" name="col_amount" required placeholder="e.g. Amount" style="width:100%;">
+            </div>
+            <div class="form-group">
+                <label>Description Column</label>
+                <input type="text" name="col_description" required placeholder="e.g. Description" style="width:100%;">
+            </div>
+        </div>
+        <div class="grid-3">
+            <div class="form-group">
+                <label>Category Column <span style="color:var(--text-muted);text-transform:none;letter-spacing:0;">(optional)</span></label>
+                <input type="text" name="col_category" placeholder="e.g. Category" style="width:100%;">
+            </div>
+            <div class="form-group">
+                <label>Date Format</label>
+                <input type="text" name="date_format" value="%m/%d/%Y" style="width:100%;">
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;">
+                <button type="submit" class="btn btn-primary" style="width:100%;">Save Profile</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

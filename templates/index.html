@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Overview</h2>
+    <span class="muted" style="font-size: 0.85rem;">Your complete financial picture</span>
+</div>
+
+<div id="summary-cards" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 1.5rem;">
+    <div class="stat-card animate-in">
+        <div class="label">Net Worth</div>
+        <div class="value accent">${{ "{:,.0f}".format(net_worth) }}</div>
+    </div>
+    <div class="stat-card animate-in" style="animation-delay:0.03s" id="cashCard"></div>
+    <div class="stat-card animate-in" style="animation-delay:0.06s" id="stocksCard"></div>
+    {% for acct in accounts if acct.type == 'credit_card' %}
+    {% if loop.first %}
+    <div class="stat-card animate-in" style="animation-delay:0.09s">
+        <div class="label">Credit Card Debt</div>
+        <div class="value negative">${{ "{:,.0f}".format(accounts | selectattr('type', 'equalto', 'credit_card') | map(attribute='balance') | sum | abs) }}</div>
+        <div class="change muted">{{ accounts | selectattr('type', 'equalto', 'credit_card') | list | length }} cards</div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+
+<div class="grid-2" style="margin-bottom: 1rem;">
+    <div class="card animate-in" style="animation-delay: 0.15s;">
+        <h3>Net Worth Over Time</h3>
+        <div class="chart-container" style="max-height: 320px;">
+            <canvas id="netWorthChart"></canvas>
+        </div>
+    </div>
+    <div class="card animate-in" style="animation-delay: 0.2s;">
+        <h3>Monthly Income vs Spending</h3>
+        <div class="chart-container" style="max-height: 320px;">
+            <canvas id="gainLossChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="card animate-in" style="animation-delay: 0.3s;">
+    <h3>All Accounts</h3>
+    <table id="accountsTable">
+        <thead>
+            <tr><th>Account</th><th>Type</th><th>Institution</th><th style="text-align:right;">Balance</th><th>As Of</th></tr>
+        </thead>
+        <tbody>
+            {% for acct in accounts %}
+            <tr>
+                <td style="color: var(--text-primary); font-weight: 500;">{{ acct.name }}</td>
+                <td><span class="tag bg-accent">{{ acct.type }}</span></td>
+                <td>{{ acct.institution }}</td>
+                <td class="amount {% if acct.balance >= 0 %}positive{% else %}negative{% endif %}" style="text-align:right;">${{ "{:,.2f}".format(acct.balance) }}</td>
+                <td>{{ acct.month }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+fetch('/api/overview')
+    .then(r => r.json())
+    .then(data => {
+        // Cash & Stocks summary cards
+        document.getElementById('cashCard').innerHTML =
+            '<div class="label">Cash in Hand</div>' +
+            '<div class="value positive">$' + data.cash_total.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+            '<div class="change muted">Checking + Savings + HSA</div>';
+        document.getElementById('stocksCard').innerHTML =
+            '<div class="label">Investments</div>' +
+            '<div class="value accent">$' + data.stocks_total.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+            '<div class="change muted">Brokerage accounts</div>';
+
+        // Net worth chart
+        if (data.net_worth_history.length > 0) {
+            const ctx = document.getElementById('netWorthChart').getContext('2d');
+            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, accentRGBA(0.15));
+            gradient.addColorStop(1, accentRGBA(0));
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.net_worth_history.map(h => h.month),
+                    datasets: [{
+                        label: 'Net Worth',
+                        data: data.net_worth_history.map(h => h.total),
+                        borderColor: CHART_ACCENT,
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        pointBackgroundColor: CHART_ACCENT,
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointHoverRadius: 7,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            grid: { color: CHART_GRID },
+                            ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' }
+                        },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // Monthly income vs spending chart
+        const gl = data.monthly_gain_loss;
+        if (gl.length > 0) {
+            const ctx2 = document.getElementById('gainLossChart').getContext('2d');
+            new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: gl.map(d => d.month),
+                    datasets: [
+                        { label: 'Income', data: gl.map(d => d.income), backgroundColor: CHART_POSITIVE, borderRadius: 6 },
+                        { label: 'Spending', data: gl.map(d => -d.spending), backgroundColor: CHART_NEGATIVE, borderRadius: 6 },
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                afterBody: function(items) {
+                                    const idx = items[0].dataIndex;
+                                    const net = gl[idx].net;
+                                    return 'Net: ' + (net >= 0 ? '+' : '') + '$' + net.toLocaleString(undefined, {minimumFractionDigits: 2});
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            grid: { color: CHART_GRID },
+                            ticks: { callback: v => '$' + Math.abs(v).toLocaleString() }
+                        },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        makeSortable('accountsTable');
+    });
+</script>
+{% endblock %}

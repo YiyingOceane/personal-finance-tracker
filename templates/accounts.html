@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Accounts</h2>
+    <span class="muted" style="font-size: 0.85rem;">{{ accounts|length }} connected</span>
+</div>
+
+<div class="grid-2">
+    <div>
+        {% if accounts %}
+        <div class="card animate-in">
+            <h3>Your Accounts</h3>
+            <table>
+                <thead>
+                    <tr><th>Name</th><th>Type</th><th>Institution</th><th style="text-align:right;">Txns</th><th>Last Updated</th></tr>
+                </thead>
+                <tbody>
+                    {% for acct in accounts %}
+                    <tr>
+                        <td style="color: var(--text-primary); font-weight: 500;">{{ acct.name }}</td>
+                        <td><span class="tag bg-accent">{{ acct.account_type }}</span></td>
+                        <td>{{ acct.institution }}</td>
+                        <td style="text-align:right; font-variant-numeric: tabular-nums;">{{ acct.txn_count }}</td>
+                        <td>{{ acct.last_transaction }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card animate-in" style="text-align:center;padding:3rem;">
+            <div style="font-size:2rem;margin-bottom:0.75rem;">&#128181;</div>
+            <div style="color:var(--text-secondary);font-size:0.95rem;">No accounts yet. Add your first one.</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card animate-in" style="animation-delay:0.1s;">
+        <h3>Add Account</h3>
+        <form method="POST" action="/accounts">
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" name="name" required placeholder="e.g. Chase Checking" style="width:100%;">
+            </div>
+            <div class="form-group">
+                <label>Type</label>
+                <select name="account_type" required style="width:100%;">
+                    <option value="checking">Checking</option>
+                    <option value="savings">Savings</option>
+                    <option value="credit_card">Credit Card</option>
+                    <option value="brokerage">Brokerage</option>
+                    <option value="rsu">RSU</option>
+                    <option value="espp">ESPP</option>
+                    <option value="401k">401(k)</option>
+                    <option value="ira">IRA</option>
+                    <option value="fsa">FSA</option>
+                    <option value="hsa">HSA</option>
+                    <option value="mortgage">Mortgage</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Institution</label>
+                <input type="text" name="institution" required placeholder="e.g. Chase, Fidelity" style="width:100%;">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;">Add Account</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

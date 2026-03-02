@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Tracker — Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Lora:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+
+    <script>
+        const THEMES = {
+            bloomberg: {
+                name: 'Bloomberg', icon: '\uD83D\uDCCA',
+                vars: { '--bg-page': '#0f1218', '--bg-white': '#1a1f2e', '--bg-hover': '#242b3d', '--border': '#2a3348', '--border-subtle': '#222838', '--accent': '#00d26a', '--accent-light': '#0d2e1e', '--accent-hover': '#00b85c', '--positive': '#00d26a', '--positive-light': '#0d2e1e', '--negative': '#ff4757', '--negative-light': '#2e1418', '--text-primary': '#e8eaed', '--text-secondary': '#8b95a5', '--text-muted': '#556070', '--font-display': "'IBM Plex Mono', monospace", '--font-body': "'IBM Plex Sans', sans-serif", '--radius': '6px', '--radius-sm': '4px', '--radius-pill': '6px', '--shadow-sm': '0 1px 3px rgba(0,0,0,0.4)', '--shadow': '0 2px 8px rgba(0,0,0,0.5)', '--shadow-md': '0 4px 16px rgba(0,0,0,0.6)' },
+                bodyWeight: '400', bodySize: '14px',
+                chart: { accent: '#00d26a', positive: '#00d26a', negative: '#ff4757', grid: 'rgba(42,51,72,0.8)', palette: ['#00d26a','#00b4d8','#ff6b6b','#ffd93d','#c77dff','#ff8fab','#72efdd','#ffb703','#8338ec','#fb5607'], tooltipBg: '#1a1f2e', tooltipTitle: '#e8eaed', tooltipBody: '#8b95a5', tooltipBorder: '#2a3348', muted: '#2a3348' },
+            },
+            apple: {
+                name: 'Apple', icon: '\uD83E\uDDE0',
+                vars: { '--bg-page': '#f5f5f7', '--bg-white': '#ffffff', '--bg-hover': '#f0f0f2', '--border': '#d2d2d7', '--border-subtle': '#e8e8ed', '--accent': '#0071e3', '--accent-light': '#e8f2ff', '--accent-hover': '#0062cc', '--positive': '#28cd41', '--positive-light': '#eafbec', '--negative': '#ff3b30', '--negative-light': '#fff1f0', '--text-primary': '#1d1d1f', '--text-secondary': '#6e6e73', '--text-muted': '#aeaeb2', '--font-display': "'Outfit', sans-serif", '--font-body': "'Outfit', sans-serif", '--radius': '14px', '--radius-sm': '10px', '--radius-pill': '50px', '--shadow-sm': '0 1px 3px rgba(0,0,0,0.04)', '--shadow': '0 2px 10px rgba(0,0,0,0.06)', '--shadow-md': '0 4px 20px rgba(0,0,0,0.08)' },
+                bodyWeight: '400', bodySize: '15px',
+                chart: { accent: '#0071e3', positive: '#28cd41', negative: '#ff3b30', grid: 'rgba(210,210,215,0.6)', palette: ['#0071e3','#28cd41','#ff2d55','#af52de','#5ac8fa','#ff9500','#ff3b30','#30d158','#bf5af2','#ff9f0a'], tooltipBg: '#ffffff', tooltipTitle: '#1d1d1f', tooltipBody: '#6e6e73', tooltipBorder: '#d2d2d7', muted: '#e2e5ea' },
+            },
+            cute: {
+                name: 'Cute', icon: '\uD83C\uDF38',
+                vars: { '--bg-page': '#fef5f0', '--bg-white': '#ffffff', '--bg-hover': '#fff0ea', '--border': '#f0ddd5', '--border-subtle': '#f5ebe5', '--accent': '#ff6b9d', '--accent-light': '#fff0f5', '--accent-hover': '#ee5a8a', '--positive': '#10b981', '--positive-light': '#ecfdf5', '--negative': '#f43f5e', '--negative-light': '#fff1f2', '--text-primary': '#3f2d23', '--text-secondary': '#8b7060', '--text-muted': '#bba090', '--font-display': "'Fredoka', sans-serif", '--font-body': "'Nunito', sans-serif", '--radius': '20px', '--radius-sm': '14px', '--radius-pill': '50px', '--shadow-sm': '0 2px 8px rgba(180,120,100,0.06)', '--shadow': '0 4px 16px rgba(180,120,100,0.1)', '--shadow-md': '0 8px 24px rgba(180,120,100,0.12)' },
+                bodyWeight: '600', bodySize: '15px',
+                chart: { accent: '#ff6b9d', positive: '#10b981', negative: '#f43f5e', grid: 'rgba(240,221,213,0.8)', palette: ['#ff6b9d','#10b981','#f472b6','#a78bfa','#60a5fa','#fbbf24','#f43f5e','#34d399','#c084fc','#fb923c'], tooltipBg: '#ffffff', tooltipTitle: '#3f2d23', tooltipBody: '#8b7060', tooltipBorder: '#f0ddd5', muted: '#f5ebe5' },
+            },
+            vintage: {
+                name: 'Vintage', icon: '\uD83D\uDCDC',
+                vars: { '--bg-page': '#faf6f0', '--bg-white': '#fffdf8', '--bg-hover': '#f5ede3', '--border': '#e0d5c5', '--border-subtle': '#eae2d6', '--accent': '#b47a4a', '--accent-light': '#faf0e5', '--accent-hover': '#9a6840', '--positive': '#5a8a60', '--positive-light': '#f0f7f0', '--negative': '#b54545', '--negative-light': '#fdf0f0', '--text-primary': '#3a2e22', '--text-secondary': '#7a6a55', '--text-muted': '#a89880', '--font-display': "'Lora', serif", '--font-body': "'Source Sans 3', sans-serif", '--radius': '10px', '--radius-sm': '6px', '--radius-pill': '8px', '--shadow-sm': '0 1px 4px rgba(120,90,50,0.06)', '--shadow': '0 2px 10px rgba(120,90,50,0.1)', '--shadow-md': '0 4px 16px rgba(120,90,50,0.12)' },
+                bodyWeight: '400', bodySize: '15px',
+                chart: { accent: '#b47a4a', positive: '#5a8a60', negative: '#b54545', grid: 'rgba(224,213,197,0.8)', palette: ['#b47a4a','#5a8a60','#c25450','#8b6fa0','#5689a0','#c9a227','#a0522d','#6b8e6b','#957dad','#cc7722'], tooltipBg: '#fffdf8', tooltipTitle: '#3a2e22', tooltipBody: '#7a6a55', tooltipBorder: '#e0d5c5', muted: '#eae2d6' },
+            },
+        };
+        const _savedTheme = localStorage.getItem('demoTheme') || 'apple';
+        const _t = THEMES[_savedTheme] || THEMES.apple;
+        (function() { const r = document.documentElement.style; Object.entries(_t.vars).forEach(([k, v]) => r.setProperty(k, v)); document.documentElement.dataset.theme = _savedTheme; })();
+        const CHART_ACCENT = _t.chart.accent, CHART_POSITIVE = _t.chart.positive, CHART_NEGATIVE = _t.chart.negative, CHART_GRID = _t.chart.grid, CHART_PALETTE = _t.chart.palette, CHART_MUTED = _t.chart.muted;
+        function accentRGBA(a) { const h = CHART_ACCENT.replace('#',''); return 'rgba('+parseInt(h.substring(0,2),16)+','+parseInt(h.substring(2,4),16)+','+parseInt(h.substring(4,6),16)+','+a+')'; }
+    </script>
+
+    <style>
+        :root { --bg-page: #f5f5f7; --bg-white: #ffffff; --bg-hover: #f0f0f2; --border: #d2d2d7; --border-subtle: #e8e8ed; --accent: #0071e3; --accent-light: #e8f2ff; --accent-hover: #0062cc; --positive: #28cd41; --positive-light: #eafbec; --negative: #ff3b30; --negative-light: #fff1f0; --text-primary: #1d1d1f; --text-secondary: #6e6e73; --text-muted: #aeaeb2; --font-display: 'Outfit', sans-serif; --font-body: 'Outfit', sans-serif; --radius: 14px; --radius-sm: 10px; --radius-pill: 50px; --shadow-sm: 0 1px 3px rgba(0,0,0,0.04); --shadow: 0 2px 10px rgba(0,0,0,0.06); --shadow-md: 0 4px 20px rgba(0,0,0,0.08); }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-body); background: var(--bg-page); color: var(--text-primary); min-height: 100vh; font-weight: 400; font-size: 15px; -webkit-font-smoothing: antialiased; }
+        nav { background: var(--bg-white); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; height: 56px; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow-sm); }
+        nav .brand { font-family: var(--font-display); font-size: 1.2rem; font-weight: 600; color: var(--accent); margin-right: 1.5rem; white-space: nowrap; display: flex; align-items: center; gap: 0.5rem; }
+        nav .brand .logo { width: 26px; height: 26px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        nav .brand .logo svg { width: 16px; height: 16px; }
+        nav .brand .wordmark span { font-weight: 400; opacity: 0.6; }
+        nav .nav-links { display: flex; gap: 0.15rem; flex: 1; overflow-x: auto; }
+        nav .nav-btn { color: var(--text-secondary); text-decoration: none; padding: 0.35rem 0.6rem; border-radius: var(--radius-pill); font-size: 0.8rem; font-weight: 500; transition: all 0.2s ease; cursor: pointer; background: none; border: none; font-family: var(--font-body); white-space: nowrap; }
+        nav .nav-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+        nav .nav-btn.active { color: var(--accent); background: var(--accent-light); font-weight: 600; }
+        .container { max-width: 1280px; margin: 0 auto; padding: 1.5rem 2rem; }
+        .page-header { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 1.5rem; }
+        .page-header h2 { font-family: var(--font-display); font-size: 1.7rem; font-weight: 600; letter-spacing: -0.02em; }
+        .card { background: var(--bg-white); border: 1px solid var(--border-subtle); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; box-shadow: var(--shadow-sm); transition: all 0.2s ease; }
+        .card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+        .card h3 { font-family: var(--font-display); font-size: 0.82rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 1rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .stat-card { background: var(--bg-white); border: 1px solid var(--border-subtle); border-radius: var(--radius); padding: 1.1rem 1.3rem; box-shadow: var(--shadow-sm); transition: all 0.2s ease; position: relative; overflow: hidden; }
+        .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent); border-radius: var(--radius) var(--radius) 0 0; opacity: 0; transition: opacity 0.2s ease; }
+        .stat-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+        .stat-card:hover::before { opacity: 1; }
+        .stat-card .label { font-family: var(--font-display); font-size: 0.72rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 0.4rem; }
+        .stat-card .value { font-family: var(--font-display); font-size: 1.7rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+        .stat-card .change { font-size: 0.8rem; font-weight: 500; margin-top: 0.35rem; }
+        .positive { color: var(--positive); } .negative { color: var(--negative); } .accent { color: var(--accent); } .muted { color: var(--text-secondary); }
+        .bg-accent { background: var(--accent-light); color: var(--accent); }
+        .bg-positive { background: var(--positive-light); color: var(--positive); }
+        .bg-negative { background: var(--negative-light); color: var(--negative); }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 0.55rem 0.75rem; font-family: var(--font-display); font-size: 0.7rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+        td { padding: 0.55rem 0.75rem; font-size: 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); }
+        tr { transition: background 0.15s ease; } tr:hover td { background: var(--accent-light); color: var(--text-primary); }
+        td.amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+        .tag { display: inline-block; padding: 0.12rem 0.55rem; border-radius: var(--radius-pill); font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+        .chart-container { position: relative; width: 100%; max-height: 320px; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popUp { 0% { opacity: 0; transform: translateY(16px) scale(0.96); } 60% { opacity: 1; transform: translateY(-4px) scale(1.01); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        .animate-in { animation: slideUp 0.35s ease forwards; opacity: 0; }
+        [data-theme="cute"] .animate-in { animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        .animate-in:nth-child(1) { animation-delay: 0.03s; } .animate-in:nth-child(2) { animation-delay: 0.06s; } .animate-in:nth-child(3) { animation-delay: 0.09s; } .animate-in:nth-child(4) { animation-delay: 0.12s; } .animate-in:nth-child(5) { animation-delay: 0.15s; } .animate-in:nth-child(6) { animation-delay: 0.18s; }
+        .theme-picker { position: relative; margin-left: 0.5rem; }
+        .theme-toggle { width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-white); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: all 0.2s ease; }
+        .theme-toggle:hover { border-color: var(--accent); box-shadow: var(--shadow); }
+        .theme-dropdown { display: none; position: absolute; top: 38px; right: 0; background: var(--bg-white); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.4rem; box-shadow: var(--shadow-md); z-index: 200; width: 190px; }
+        .theme-dropdown.open { display: block; }
+        .theme-option { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.45rem 0.55rem; border: none; border-radius: var(--radius-sm); background: transparent; cursor: pointer; font-family: var(--font-body); font-size: 0.78rem; font-weight: 500; color: var(--text-secondary); transition: all 0.15s ease; text-align: left; }
+        .theme-option:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .theme-option.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+        .theme-dots { display: flex; gap: 2px; } .theme-dot { width: 9px; height: 9px; border-radius: 50%; }
+        .tab-content { display: none; } .tab-content.active { display: block; }
+        .demo-banner { background: var(--accent-light); border: 1px solid var(--accent); border-radius: var(--radius); padding: 0.7rem 1rem; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; color: var(--accent); flex-wrap: wrap; gap: 0.5rem; }
+        .demo-banner a { color: var(--accent); font-weight: 600; }
+        th.sortable { cursor: pointer; user-select: none; position: relative; padding-right: 1.2rem; transition: color 0.15s; }
+        th.sortable:hover { color: var(--accent); }
+        th.sortable::after { content: '\2195'; position: absolute; right: 0.2rem; top: 50%; transform: translateY(-50%); font-size: 0.5rem; opacity: 0.35; }
+        th.sortable.asc::after { content: '\25B2'; opacity: 0.8; color: var(--accent); }
+        th.sortable.desc::after { content: '\25BC'; opacity: 0.8; color: var(--accent); }
+        @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } nav { padding: 0 0.75rem; } nav .nav-links { gap: 0; } .container { padding: 1rem; } }
+    </style>
+    <script>
+        Chart.defaults.color = _t.chart.tooltipBody; Chart.defaults.borderColor = _t.vars['--border'];
+        Chart.defaults.font.family = _t.vars['--font-body']; Chart.defaults.font.size = 12; Chart.defaults.font.weight = 500;
+        Chart.defaults.plugins.legend.labels.usePointStyle = true; Chart.defaults.plugins.legend.labels.pointStyleWidth = 8; Chart.defaults.plugins.legend.labels.padding = 12;
+        Chart.defaults.plugins.tooltip.backgroundColor = _t.chart.tooltipBg; Chart.defaults.plugins.tooltip.titleColor = _t.chart.tooltipTitle;
+        Chart.defaults.plugins.tooltip.bodyColor = _t.chart.tooltipBody; Chart.defaults.plugins.tooltip.borderColor = _t.chart.tooltipBorder;
+        Chart.defaults.plugins.tooltip.borderWidth = 1; Chart.defaults.plugins.tooltip.cornerRadius = parseInt(_t.vars['--radius-sm']) || 8;
+        Chart.defaults.plugins.tooltip.padding = 10;
+    </script>
+</head>
+<body>
+    <nav>
+        <div class="brand">
+            <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="wordmark">my<span>finance</span></div>
+        </div>
+        <div class="nav-links">
+            <button class="nav-btn active" onclick="showTab('about',this)">About</button>
+            <button class="nav-btn" onclick="showTab('overview',this)">Overview</button>
+            <button class="nav-btn" onclick="showTab('spending',this)">Spending</button>
+            <button class="nav-btn" onclick="showTab('transactions',this)">Transactions</button>
+            <button class="nav-btn" onclick="showTab('income',this)">Income</button>
+            <button class="nav-btn" onclick="showTab('investments',this)">Investments</button>
+            <button class="nav-btn" onclick="showTab('equity',this)">Equity</button>
+            <button class="nav-btn" onclick="showTab('housing',this)">Housing</button>
+            <button class="nav-btn" onclick="showTab('healthcare',this)">Healthcare</button>
+            <button class="nav-btn" onclick="showTab('import',this)">Import</button>
+        </div>
+        <div class="theme-picker">
+            <button class="theme-toggle" id="themeToggle" onclick="document.getElementById('themeDropdown').classList.toggle('open')"><span id="themeToggleIcon"></span></button>
+            <div class="theme-dropdown" id="themeDropdown"></div>
+        </div>
+    </nav>
+    <div class="container">
+        <div class="demo-banner animate-in">
+            <span>Demo with sample data — all names and numbers are fictional.</span>
+            <a href="https://github.com/yy-3308/personal-finance-tracker" target="_blank">View on GitHub &rarr;</a>
+        </div>
+
+        <!-- OVERVIEW -->
+        <div id="tab-overview" class="tab-content">
+            <div class="page-header"><h2>Overview</h2><span class="muted" style="font-size:0.85rem;">Your complete financial picture</span></div>
+            <div class="grid" style="margin-bottom:1.25rem;" id="overviewCards"></div>
+            <div class="grid-2" style="margin-bottom:1rem;">
+                <div class="card animate-in"><h3>Net Worth Over Time</h3><div class="chart-container"><canvas id="netWorthChart"></canvas></div></div>
+                <div class="card animate-in"><h3>Monthly Income vs Spending</h3><div class="chart-container"><canvas id="gainLossChart"></canvas></div></div>
+            </div>
+            <div class="card animate-in"><h3>All Accounts</h3><table id="acctTable"><thead><tr><th>Account</th><th>Type</th><th>Institution</th><th style="text-align:right;">Balance</th></tr></thead><tbody id="acctBody"></tbody></table></div>
+        </div>
+
+        <!-- SPENDING -->
+        <div id="tab-spending" class="tab-content">
+            <div class="page-header"><h2>Spending</h2><span class="muted" style="font-size:0.85rem;">Excludes transfers, income &amp; interest</span></div>
+            <div class="grid" style="margin-bottom:1.25rem;" id="spendingSummary"></div>
+            <div class="grid-2" style="margin-bottom:1rem;">
+                <div class="card animate-in"><h3>By Category</h3><div class="chart-container" style="max-height:320px;"><canvas id="categoryPie"></canvas></div></div>
+                <div class="card animate-in"><h3>Month over Month</h3><div class="chart-container" style="max-height:320px;"><canvas id="comparisonBar"></canvas></div></div>
+            </div>
+            <div class="card animate-in">
+                <h3 style="display:flex;align-items:center;gap:0.75rem;">Spending Transactions <span id="categoryFilter" style="display:none;font-size:0.72rem;text-transform:none;letter-spacing:0;color:var(--accent);cursor:pointer;" onclick="filterByCategory(activeCategory)"></span></h3>
+                <table id="spendTxnTable"><thead><tr><th>Date</th><th>Description</th><th>Category</th><th style="text-align:right;">Amount</th><th>Account</th></tr></thead><tbody id="spendTxnBody"></tbody></table>
+            </div>
+        </div>
+
+        <!-- TRANSACTIONS -->
+        <div id="tab-transactions" class="tab-content">
+            <div class="page-header"><h2>Transactions</h2><span class="muted" style="font-size:0.85rem;">All transactions across accounts</span></div>
+            <div class="card animate-in"><table id="allTxnTable"><thead><tr><th>Date</th><th>Description</th><th>Category</th><th style="text-align:right;">Amount</th><th>Account</th></tr></thead><tbody id="allTxnBody"></tbody></table></div>
+        </div>
+
+        <!-- INCOME -->
+        <div id="tab-income" class="tab-content">
+            <div class="page-header"><h2>Income</h2></div>
+            <div class="grid" style="margin-bottom:1.25rem;" id="incomeCards"></div>
+            <div class="grid-2" style="margin-bottom:1rem;">
+                <div class="card animate-in"><h3>Income Breakdown</h3><div class="chart-container" style="max-height:280px;"><canvas id="incomePie"></canvas></div></div>
+                <div class="card animate-in"><h3>Monthly Income</h3><div class="chart-container" style="max-height:280px;"><canvas id="incomeBar"></canvas></div></div>
+            </div>
+            <div class="grid-2">
+                <div class="card animate-in"><h3>Salary &amp; Wages</h3><table><thead><tr><th>Date</th><th>Description</th><th>Account</th><th style="text-align:right;">Amount</th></tr></thead><tbody id="salaryBody"></tbody></table></div>
+                <div class="card animate-in"><h3>Stock Dividends</h3><table><thead><tr><th>Date</th><th>Symbol</th><th style="text-align:right;">Amount</th></tr></thead><tbody id="divBody"></tbody></table></div>
+            </div>
+        </div>
+
+        <!-- INVESTMENTS -->
+        <div id="tab-investments" class="tab-content">
+            <div class="page-header"><h2>Investments</h2></div>
+            <div class="grid" style="margin-bottom:1.25rem;" id="investCards"></div>
+            <div class="grid-2" style="margin-bottom:1rem;">
+                <div class="card animate-in"><h3>Portfolio Value</h3><div class="chart-container"><canvas id="portfolioChart"></canvas></div></div>
+                <div class="card animate-in"><h3>Holdings</h3><table id="holdingsTable"><thead><tr><th>Symbol</th><th style="text-align:right;">Shares</th><th style="text-align:right;">Price</th><th style="text-align:right;">Value</th><th style="text-align:right;">Gain/Loss</th></tr></thead><tbody id="holdingsBody"></tbody></table></div>
+            </div>
+        </div>
+
+        <!-- EQUITY -->
+        <div id="tab-equity" class="tab-content">
+            <div class="page-header"><h2>Equity</h2><span class="muted" style="font-size:0.85rem;">Stock compensation</span></div>
+            <div class="grid" style="margin-bottom:1.25rem;" id="equityCards"></div>
+            <div class="grid-2" style="margin-bottom:1rem;">
+                <div class="card animate-in"><h3>Vesting Schedule</h3><div class="chart-container" style="max-height:280px;"><canvas id="vestingChart"></canvas></div></div>
+                <div class="card animate-in"><h3>Grant Details</h3><table id="grantTable"><thead><tr><th>Grant</th><th>Date</th><th style="text-align:right;">Shares</th><th style="text-align:right;">Vested</th><th style="text-align:right;">Value</th></tr></thead><tbody id="grantBody"></tbody></table></div>
+            </div>
+        </div>
+
+        <!-- HOUSING -->
+        <div id="tab-housing" class="tab-content">
+            <div class="page-header"><h2>Housing</h2><span class="muted" style="font-size:0.85rem;">Rent &amp; housing</span></div>
+            <div class="grid" style="margin-bottom:1.25rem;" id="housingCards"></div>
+            <div class="grid-2">
+                <div class="card animate-in"><h3>Monthly Housing</h3><div class="chart-container" style="max-height:280px;"><canvas id="mortgageChart"></canvas></div></div>
+                <div class="card animate-in"><h3>Payment History</h3><table><thead><tr><th>Date</th><th>Description</th><th style="text-align:right;">Amount</th></tr></thead><tbody id="mortgageBody"></tbody></table></div>
+            </div>
+        </div>
+
+        <!-- HEALTHCARE -->
+        <div id="tab-healthcare" class="tab-content">
+            <div class="page-header"><h2>Healthcare</h2><span class="muted" style="font-size:0.85rem;">HSA account overview</span></div>
+            <div class="grid" style="margin-bottom:1.25rem;" id="hsaCards"></div>
+            <div class="grid-2" style="margin-bottom:1rem;">
+                <div class="card animate-in"><h3>Account Breakdown</h3><div class="chart-container" style="max-height:260px;"><canvas id="hsaPie"></canvas></div></div>
+                <div class="card animate-in"><h3>Monthly Activity</h3><div class="chart-container" style="max-height:260px;"><canvas id="hsaBar"></canvas></div></div>
+            </div>
+            <div class="grid-2">
+                <div class="card animate-in"><h3>Investment Holdings</h3><table><thead><tr><th>Symbol</th><th style="text-align:right;">Shares</th><th style="text-align:right;">Price</th><th style="text-align:right;">Value</th></tr></thead><tbody id="hsaHoldingsBody"></tbody></table></div>
+                <div class="card animate-in"><h3>Transactions</h3><table><thead><tr><th>Date</th><th>Description</th><th>Type</th><th style="text-align:right;">Amount</th></tr></thead><tbody id="hsaTxnBody"></tbody></table></div>
+            </div>
+        </div>
+
+        <!-- IMPORT -->
+        <div id="tab-import" class="tab-content">
+            <div class="page-header"><h2>Import</h2><span class="muted" style="font-size:0.85rem;">Upload bank statements</span></div>
+            <div class="card animate-in"><h3>Connected Accounts</h3><table id="importTable"><thead><tr><th>Institution</th><th>Account</th><th>Type</th><th>Date Range</th><th style="text-align:right;">Balance</th></tr></thead><tbody id="importBody"></tbody></table></div>
+            <div class="card animate-in" style="text-align:center;padding:2rem;">
+                <div style="font-size:1.5rem;margin-bottom:0.5rem;">Upload is disabled in demo mode</div>
+                <div style="color:var(--text-muted);font-size:0.85rem;">Download the app to import your own bank statements (CSV/PDF)</div>
+            </div>
+        </div>
+
+        <!-- ABOUT -->
+        <div id="tab-about" class="tab-content active">
+            <div class="page-header"><h2>About</h2><span class="muted" style="font-size:0.85rem;">Why this exists</span></div>
+            <div class="card animate-in" style="max-width:720px;">
+                <h3>The Problem</h3>
+                <p style="font-size:0.92rem;line-height:1.7;color:var(--text-secondary);margin-bottom:1rem;">Every personal finance app I tried had the same problems:</p>
+                <div style="display:flex;flex-direction:column;gap:0.85rem;margin-bottom:0.5rem;">
+                    <div style="display:flex;gap:0.75rem;align-items:flex-start;">
+                        <span style="font-size:1.3rem;flex-shrink:0;margin-top:0.1rem;">&#x1F6AB;</span>
+                        <div><div style="font-weight:600;color:var(--text-primary);margin-bottom:0.15rem;">Not built for me</div><span style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;">Most apps are either too bloated or too opinionated about how I should budget. And none of them support equity compensation, HSA investments, or multi-institution imports in the formats I actually get.</span></div>
+                    </div>
+                    <div style="display:flex;gap:0.75rem;align-items:flex-start;">
+                        <span style="font-size:1.3rem;flex-shrink:0;margin-top:0.1rem;">&#x1F512;</span>
+                        <div><div style="font-weight:600;color:var(--text-primary);margin-bottom:0.15rem;">They want all my data</div><span style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;">Linking bank credentials to third-party services means someone else has access to my full transaction history. One breach and it's all exposed. And there's no telling how these apps might use or monetize that data down the road.</span></div>
+                    </div>
+                    <div style="display:flex;gap:0.75rem;align-items:flex-start;">
+                        <span style="font-size:1.3rem;flex-shrink:0;margin-top:0.1rem;">&#x1F4B8;</span>
+                        <div><div style="font-weight:600;color:var(--text-primary);margin-bottom:0.15rem;">Too expensive for what they do</div><span style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;">Mint shut down. YNAB is $100/year. Copilot is $70/year. I just want to see my spending and net worth &mdash; I shouldn't need a subscription for that.</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="card animate-in" style="max-width:720px;">
+                <h3>The Solution</h3>
+                <p style="font-size:0.92rem;line-height:1.7;color:var(--text-secondary);">So I built my own. It runs 100% locally on your machine, reads the bank statements you already download, and does exactly what you need &mdash; nothing more.</p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;margin-top:1rem;">
+                    <div style="text-align:center;padding:1rem 0.5rem;">
+                        <div style="font-size:1.8rem;margin-bottom:0.3rem;">&#x1F3E0;</div>
+                        <div style="font-weight:600;color:var(--text-primary);font-size:0.85rem;">Runs Locally</div>
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.2rem;">Your data never leaves your computer</div>
+                    </div>
+                    <div style="text-align:center;padding:1rem 0.5rem;">
+                        <div style="font-size:1.8rem;margin-bottom:0.3rem;">&#x1F4C4;</div>
+                        <div style="font-weight:600;color:var(--text-primary);font-size:0.85rem;">Statement Import</div>
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.2rem;">PDF, CSV, XLSX from 8 institutions</div>
+                    </div>
+                    <div style="text-align:center;padding:1rem 0.5rem;">
+                        <div style="font-size:1.8rem;margin-bottom:0.3rem;">&#x1F3A8;</div>
+                        <div style="font-weight:600;color:var(--text-primary);font-size:0.85rem;">4 Themes</div>
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.2rem;">Bloomberg, Apple, Cute, Vintage</div>
+                    </div>
+                    <div style="text-align:center;padding:1rem 0.5rem;">
+                        <div style="font-size:1.8rem;margin-bottom:0.3rem;">&#x1F4B0;</div>
+                        <div style="font-weight:600;color:var(--text-primary);font-size:0.85rem;">Free</div>
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.2rem;">Open source, no subscription</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card animate-in" style="max-width:720px;">
+                <h3>What's Next</h3>
+                <p style="font-size:0.92rem;line-height:1.7;color:var(--text-secondary);margin-bottom:0.75rem;">Right now, the app reads manually downloaded statements from your bank. It works, but it means you have to remember to download files each month.</p>
+                <p style="font-size:0.92rem;line-height:1.7;color:var(--text-secondary);">I'm exploring <strong style="color:var(--accent);">Plaid integration</strong> to automatically pull transactions from your bank accounts. Plaid now offers a free tier for personal use, which would make the app feel much more seamless &mdash; just open it and your latest transactions are already there. Stay tuned.</p>
+            </div>
+            <div class="card animate-in" style="max-width:720px;text-align:center;padding:1.5rem;">
+                <div style="font-size:0.92rem;color:var(--text-secondary);margin-bottom:0.75rem;">Built with Flask, SQLite, and Chart.js</div>
+                <a href="https://github.com/yy-3308/personal-finance-tracker" target="_blank" style="display:inline-block;padding:0.6rem 1.5rem;background:var(--accent);color:white;border-radius:var(--radius-pill);text-decoration:none;font-weight:600;font-size:0.85rem;transition:all 0.2s ease;">View on GitHub &rarr;</a>
+            </div>
+        </div>
+    </div>
+
+<script>
+// ═══ DUMMY DATA ═══
+const ACCOUNTS = [
+    { name: 'Maple Checking', type: 'checking', inst: 'Maple Bank', balance: 2840.50, range: '2025-03 \u2192 2026-02' },
+    { name: 'Maple Savings', type: 'savings', inst: 'Maple Bank', balance: 3500.00, range: '2025-03 \u2192 2026-02' },
+    { name: 'Wellness HSA', type: 'hsa', inst: 'Wellness Health', balance: 1850.30, range: '2025-06 \u2192 2026-02' },
+    { name: 'Summit Brokerage', type: 'brokerage', inst: 'Summit Invest', balance: 3200.00, range: '2025-01 \u2192 2026-02' },
+    { name: 'Evergreen Roth IRA', type: 'brokerage', inst: 'Evergreen Capital', balance: 1450.00, range: '2025-01 \u2192 2026-02' },
+    { name: 'Maple Rewards Visa', type: 'credit_card', inst: 'Maple Bank', balance: -480.50, range: '2025-02 \u2192 2026-02' },
+    { name: 'Horizon Gold Card', type: 'credit_card', inst: 'Horizon Card', balance: -340.00, range: '2025-04 \u2192 2026-02' },
+    { name: 'Coastal Double Cash', type: 'credit_card', inst: 'Coastal Credit', balance: -125.00, range: '2025-05 \u2192 2026-02' },
+];
+const MONTHS = ['2025-05','2025-06','2025-07','2025-08','2025-09','2025-10','2025-11','2025-12','2026-01','2026-02'];
+const NET_WORTH = [8200,8600,8400,9100,9500,9800,10200,10800,11400,11895];
+const M_INCOME = [3400,3410,3400,3420,3400,3415,3400,4100,3410,3415];
+const M_SPEND = [980,1250,1180,1050,1320,1150,1580,1420,1100,1182];
+const CATS = [
+    {name:'Dining',emoji:'\uD83C\uDF5C',total:128,prev:110},{name:'Groceries',emoji:'\uD83D\uDED2',total:222,prev:240},
+    {name:'Shopping',emoji:'\uD83D\uDECD\uFE0F',total:187,prev:125},{name:'Travel',emoji:'\u2708\uFE0F',total:120,prev:0},
+    {name:'Subscription',emoji:'\uD83D\uDD01',total:46,prev:46},{name:'Gas',emoji:'\u26FD',total:81,prev:72},
+    {name:'Entertainment',emoji:'\uD83C\uDFAC',total:69,prev:55},{name:'Utilities',emoji:'\uD83D\uDCA1',total:145,prev:138},
+    {name:'Healthcare',emoji:'\uD83C\uDFE5',total:50,prev:20},{name:'Pet',emoji:'\uD83D\uDC3E',total:134,prev:85},
+];
+const SPEND_TXN = [
+    {date:'2026-02-27',desc:'Greenleaf Market',cat:'Groceries',amt:52.18,acct:'Maple Rewards Visa'},
+    {date:'2026-02-26',desc:'Skyway Airlines',cat:'Travel',amt:120.00,acct:'Horizon Gold Card'},
+    {date:'2026-02-25',desc:'Sakura Sushi',cat:'Dining',amt:38.50,acct:'Maple Rewards Visa'},
+    {date:'2026-02-24',desc:'Riverdale Mall',cat:'Shopping',amt:64.99,acct:'Horizon Gold Card'},
+    {date:'2026-02-23',desc:'Corner Grocery Co',cat:'Groceries',amt:48.30,acct:'Maple Rewards Visa'},
+    {date:'2026-02-22',desc:'StreamFlix',cat:'Subscription',amt:15.99,acct:'Coastal Double Cash'},
+    {date:'2026-02-22',desc:'TuneCloud',cat:'Subscription',amt:10.99,acct:'Coastal Double Cash'},
+    {date:'2026-02-21',desc:'Pinewood Gas',cat:'Gas',amt:42.40,acct:'Coastal Double Cash'},
+    {date:'2026-02-20',desc:'Brightway Store',cat:'Shopping',amt:34.50,acct:'Horizon Gold Card'},
+    {date:'2026-02-19',desc:'Clearview Pharmacy',cat:'Healthcare',amt:15.00,acct:'Maple Rewards Visa'},
+    {date:'2026-02-18',desc:'Lakeside Bistro',cat:'Dining',amt:32.40,acct:'Maple Rewards Visa'},
+    {date:'2026-02-17',desc:'Happy Paws Pet Shop',cat:'Pet',amt:38.50,acct:'Coastal Double Cash'},
+    {date:'2026-02-16',desc:'Bright Energy Co',cat:'Utilities',amt:85.20,acct:'Maple Checking'},
+    {date:'2026-02-15',desc:'Starlight Cinema',cat:'Entertainment',amt:24.00,acct:'Coastal Double Cash'},
+    {date:'2026-02-14',desc:'Leafy Greens Cafe',cat:'Dining',amt:14.50,acct:'Maple Rewards Visa'},
+    {date:'2026-02-13',desc:'TechByte Store',cat:'Shopping',amt:45.00,acct:'Horizon Gold Card'},
+    {date:'2026-02-12',desc:'BulkBuy Warehouse',cat:'Groceries',amt:68.40,acct:'Coastal Double Cash'},
+    {date:'2026-02-11',desc:'QuickBite Delivery',cat:'Dining',amt:22.30,acct:'Maple Rewards Visa'},
+    {date:'2026-02-10',desc:'Paws & Claws Vet',cat:'Pet',amt:95.00,acct:'Maple Rewards Visa'},
+    {date:'2026-02-09',desc:'FreshMart',cat:'Groceries',amt:52.60,acct:'Coastal Double Cash'},
+    {date:'2026-02-08',desc:'Grand Theatre',cat:'Entertainment',amt:45.00,acct:'Horizon Gold Card'},
+    {date:'2026-02-07',desc:'Wrap & Roll',cat:'Dining',amt:12.80,acct:'Maple Rewards Visa'},
+    {date:'2026-02-06',desc:'CloudDrive / VidPremium',cat:'Subscription',amt:18.98,acct:'Coastal Double Cash'},
+    {date:'2026-02-05',desc:'Pinewood Gas',cat:'Gas',amt:38.10,acct:'Coastal Double Cash'},
+    {date:'2026-02-04',desc:'Urgent Care Copay',cat:'Healthcare',amt:35.00,acct:'Maple Rewards Visa'},
+    {date:'2026-02-03',desc:'Threads & Co',cat:'Shopping',amt:42.40,acct:'Horizon Gold Card'},
+    {date:'2026-02-02',desc:'FastNet Internet',cat:'Utilities',amt:59.99,acct:'Maple Checking'},
+    {date:'2026-02-01',desc:'Beanery Coffee',cat:'Dining',amt:6.45,acct:'Maple Rewards Visa'},
+];
+const ALL_TXN = [
+    {date:'2026-02-28',desc:'Direct Deposit - Employer',cat:'Income',amt:1700.00,acct:'Maple Checking'},
+    {date:'2026-02-14',desc:'Direct Deposit - Employer',cat:'Income',amt:1700.00,acct:'Maple Checking'},
+    {date:'2026-02-15',desc:'Dividend - VTI',cat:'Income',amt:8.50,acct:'Summit Brokerage'},
+    {date:'2026-02-15',desc:'Transfer to Savings',cat:'Transfer',amt:-500.00,acct:'Maple Checking'},
+    {date:'2026-02-15',desc:'Transfer from Checking',cat:'Transfer',amt:500.00,acct:'Maple Savings'},
+    ...SPEND_TXN.map(t => ({date:t.date,desc:t.desc,cat:t.cat,amt:-t.amt,acct:t.acct}))
+].sort((a,b) => b.date.localeCompare(a.date));
+const HOLDINGS = [
+    {sym:'VTI',shares:8.0,price:285.40,cost:2100,value:2283.20},
+    {sym:'SCHD',shares:15.0,price:82.50,cost:1100,value:1237.50},
+    {sym:'QQQ',shares:2.0,price:520.80,cost:960,value:1041.60},
+];
+const PORT_HIST = [3200,3350,3280,3600,3800,3950,4100,4250,4450,4650];
+
+// ═══ HELPERS ═══
+function showTab(name, btn) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    if (btn) btn.classList.add('active');
+}
+function setTheme(name) { localStorage.setItem('demoTheme', name); location.reload(); }
+document.addEventListener('click', function(e) { if (!e.target.closest('.theme-picker')) document.getElementById('themeDropdown').classList.remove('open'); });
+function makeSortable(id) {
+    const t = document.getElementById(id); if (!t) return;
+    t.querySelectorAll('thead th').forEach((th, ci) => {
+        th.classList.add('sortable');
+        th.addEventListener('click', function() {
+            const asc = th.classList.contains('asc'); t.querySelectorAll('th').forEach(h=>h.classList.remove('asc','desc'));
+            th.classList.add(asc?'desc':'asc'); const d = asc?-1:1;
+            const tb = t.querySelector('tbody'), rows = Array.from(tb.querySelectorAll('tr'));
+            rows.sort((a,b)=>{const aC=a.children[ci],bC=b.children[ci];if(!aC||!bC)return 0;let aV=aC.textContent.trim(),bV=bC.textContent.trim();const aN=parseFloat(aV.replace(/[$,%+]/g,'').replace(/,/g,'')),bN=parseFloat(bV.replace(/[$,%+]/g,'').replace(/,/g,''));if(!isNaN(aN)&&!isNaN(bN))return(aN-bN)*d;return aV.localeCompare(bV)*d;});
+            rows.forEach(r=>tb.appendChild(r));
+        });
+    });
+}
+function renderRows(tbodyId, txns, cols) { document.getElementById(tbodyId).innerHTML = txns.map(t => '<tr>' + cols(t) + '</tr>').join(''); }
+
+// Spending filter
+let activeCategory = null;
+function filterByCategory(cat) {
+    const el = document.getElementById('categoryFilter');
+    if (activeCategory === cat) { activeCategory = null; renderSpendTxn(SPEND_TXN); el.style.display = 'none'; }
+    else { activeCategory = cat; const f = SPEND_TXN.filter(t=>t.cat===cat); renderSpendTxn(f); el.textContent = cat+' ('+f.length+') \u2715'; el.style.display = 'inline'; }
+    makeSortable('spendTxnTable');
+}
+function renderSpendTxn(txns) {
+    renderRows('spendTxnBody', txns, t =>
+        '<td>'+t.date+'</td><td style="color:var(--text-primary);font-weight:500;">'+t.desc+'</td><td><span class="tag bg-accent">'+t.cat+'</span></td><td class="amount negative" style="text-align:right;">$'+t.amt.toFixed(2)+'</td><td>'+t.acct+'</td>'
+    );
+}
+
+// ═══ MAIN RENDER ═══
+document.addEventListener('DOMContentLoaded', function() {
+    document.body.style.fontWeight = _t.bodyWeight; document.body.style.fontSize = _t.bodySize;
+    // Theme dropdown
+    const dd = document.getElementById('themeDropdown'), saved = localStorage.getItem('demoTheme')||'apple';
+    Object.entries(THEMES).forEach(([k, th]) => {
+        const b = document.createElement('button'); b.className = 'theme-option'+(k===saved?' active':'');
+        b.innerHTML = '<span class="theme-dots">'+[th.vars['--accent'],th.vars['--bg-page'],th.vars['--text-primary']].map(c=>'<span class="theme-dot" style="background:'+c+'"></span>').join('')+'</span><span>'+th.icon+' '+th.name+'</span>';
+        b.onclick = function(e){e.stopPropagation();if(k!==saved)setTheme(k);}; dd.appendChild(b);
+    });
+    document.getElementById('themeToggleIcon').textContent = _t.icon;
+
+    // ── OVERVIEW ──
+    document.getElementById('overviewCards').innerHTML =
+        '<div class="stat-card animate-in"><div class="label">Net Worth</div><div class="value accent">$11,895</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Cash in Hand</div><div class="value positive">$8,191</div><div class="change muted">Checking + Savings + HSA</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Investments</div><div class="value accent">$4,650</div><div class="change muted">Brokerage + Roth IRA</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Credit Card Debt</div><div class="value negative">$946</div><div class="change muted">3 cards</div></div>';
+
+    const g1 = document.getElementById('netWorthChart').getContext('2d');
+    const grad = g1.createLinearGradient(0,0,0,280); grad.addColorStop(0,accentRGBA(0.15)); grad.addColorStop(1,accentRGBA(0));
+    new Chart(g1,{type:'line',data:{labels:MONTHS.map(m=>m.substring(2)),datasets:[{label:'Net Worth',data:NET_WORTH,borderColor:CHART_ACCENT,backgroundColor:grad,fill:true,tension:0.4,borderWidth:3,pointRadius:4,pointBackgroundColor:CHART_ACCENT,pointBorderColor:_t.vars['--bg-white'],pointBorderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:CHART_GRID},ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}},x:{grid:{display:false}}}}});
+    new Chart(document.getElementById('gainLossChart'),{type:'bar',data:{labels:MONTHS.map(m=>m.substring(2)),datasets:[{label:'Income',data:M_INCOME,backgroundColor:CHART_POSITIVE,borderRadius:5},{label:'Spending',data:M_SPEND.map(v=>-v),backgroundColor:CHART_NEGATIVE,borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{grid:{color:CHART_GRID},ticks:{callback:v=>'$'+Math.abs(v).toLocaleString()}},x:{grid:{display:false}}}}});
+    renderRows('acctBody', ACCOUNTS, a=>'<td style="color:var(--text-primary);font-weight:500;">'+a.name+'</td><td><span class="tag bg-accent">'+a.type+'</span></td><td>'+a.inst+'</td><td class="amount '+(a.balance>=0?'positive':'negative')+'" style="text-align:right;">$'+a.balance.toLocaleString(undefined,{minimumFractionDigits:2})+'</td>');
+    makeSortable('acctTable');
+
+    // ── SPENDING ──
+    const totSpend = CATS.reduce((s,c)=>s+c.total,0);
+    const topCh = CATS.map(c=>({...c,change:c.total-c.prev})).sort((a,b)=>Math.abs(b.change)-Math.abs(a.change)).slice(0,3);
+    let sh = '<div class="stat-card animate-in"><div class="label">Total Spending</div><div class="value negative">$'+totSpend.toLocaleString(undefined,{minimumFractionDigits:2})+'</div><div class="change muted">'+SPEND_TXN.length+' transactions</div></div>';
+    topCh.forEach((c,i)=>{const cls=c.change>0?'negative':'positive',arr=c.change>0?'\u2191':'\u2193';sh+='<div class="stat-card animate-in" style="animation-delay:'+((i+1)*0.04)+'s"><div class="label">'+c.name+'</div><div class="value" style="font-size:1.4rem;">$'+c.total+'</div><div class="change '+cls+'">'+arr+' $'+Math.abs(c.change)+' vs last mo</div></div>';});
+    document.getElementById('spendingSummary').innerHTML = sh;
+    new Chart(document.getElementById('categoryPie'),{type:'doughnut',data:{labels:CATS.map(c=>c.emoji+' '+c.name),datasets:[{data:CATS.map(c=>c.total),backgroundColor:CHART_PALETTE.slice(0,CATS.length),borderColor:_t.vars['--bg-white'],borderWidth:3}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',onClick:(e,el)=>{if(el.length)filterByCategory(CATS[el[0].index].name);},plugins:{legend:{position:'bottom',labels:{padding:12},onClick:(e,li)=>{filterByCategory(CATS[li.index].name);}},tooltip:{callbacks:{label:c=>' $'+c.parsed.toFixed(2)}}}}});
+    new Chart(document.getElementById('comparisonBar'),{type:'bar',data:{labels:CATS.map(c=>c.name),datasets:[{label:'This Month',data:CATS.map(c=>c.total),backgroundColor:CHART_ACCENT,borderRadius:5},{label:'Last Month',data:CATS.map(c=>c.prev),backgroundColor:CHART_MUTED,borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{grid:{color:CHART_GRID},ticks:{callback:v=>'$'+v}},x:{grid:{display:false}}}}});
+    renderSpendTxn(SPEND_TXN); makeSortable('spendTxnTable');
+
+    // ── ALL TRANSACTIONS ──
+    renderRows('allTxnBody', ALL_TXN, t=>{
+        const cls=t.amt>=0?'positive':'negative'; const sign=t.amt>=0?'+$':'$';
+        return '<td>'+t.date+'</td><td style="color:var(--text-primary);font-weight:500;">'+t.desc+'</td><td><span class="tag bg-accent">'+t.cat+'</span></td><td class="amount '+cls+'" style="text-align:right;">'+sign+Math.abs(t.amt).toFixed(2)+'</td><td>'+t.acct+'</td>';
+    }); makeSortable('allTxnTable');
+
+    // ── INCOME ──
+    document.getElementById('incomeCards').innerHTML =
+        '<div class="stat-card animate-in"><div class="label">Total Income</div><div class="value positive">$3,415</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Salary</div><div class="value">$3,400</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Dividends</div><div class="value">$12.00</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Interest</div><div class="value">$3.00</div></div>';
+    new Chart(document.getElementById('incomePie'),{type:'doughnut',data:{labels:['Salary','Dividends','Interest'],datasets:[{data:[3400,12,3],backgroundColor:[CHART_ACCENT,CHART_POSITIVE,'#fbbf24'],borderColor:_t.vars['--bg-white'],borderWidth:3}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{padding:12}},tooltip:{callbacks:{label:c=>' $'+c.parsed.toFixed(2)}}}}});
+    const sH=[3400,3400,3400,3400,3400,3400,3400,4100,3400,3400],dH=[0,0,0,8,0,0,10,0,0,12],iH=[2,3,3,3,3,4,4,4,5,3];
+    new Chart(document.getElementById('incomeBar'),{type:'bar',data:{labels:MONTHS.map(m=>m.substring(2)),datasets:[{label:'Salary',data:sH,backgroundColor:CHART_ACCENT,borderRadius:3},{label:'Dividends',data:dH,backgroundColor:CHART_POSITIVE,borderRadius:3},{label:'Interest',data:iH,backgroundColor:'#fbbf24',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{stacked:true,grid:{color:CHART_GRID},ticks:{callback:v=>'$'+v.toLocaleString()}},x:{stacked:true,grid:{display:false}}}}});
+    renderRows('salaryBody',[{d:'2026-02-28',desc:'Direct Deposit - Employer',acct:'Maple Checking',amt:1700},{d:'2026-02-14',desc:'Direct Deposit - Employer',acct:'Maple Checking',amt:1700}],s=>'<td>'+s.d+'</td><td style="color:var(--text-primary);font-weight:500;">'+s.desc+'</td><td>'+s.acct+'</td><td class="amount positive" style="text-align:right;">+$'+s.amt.toLocaleString(undefined,{minimumFractionDigits:2})+'</td>');
+    renderRows('divBody',[{d:'2026-02-15',sym:'VTI',amt:8.50},{d:'2026-02-10',sym:'SCHD',amt:3.50}],d=>'<td>'+d.d+'</td><td style="color:var(--accent);font-weight:600;">'+d.sym+'</td><td class="amount positive" style="text-align:right;">+$'+d.amt.toFixed(2)+'</td>');
+
+    // ── INVESTMENTS ──
+    const totalVal = HOLDINGS.reduce((s,h)=>s+h.value,0), totalCost = HOLDINGS.reduce((s,h)=>s+h.cost,0), totalGain = totalVal-totalCost;
+    document.getElementById('investCards').innerHTML =
+        '<div class="stat-card animate-in"><div class="label">Portfolio Value</div><div class="value accent">$'+totalVal.toLocaleString(undefined,{minimumFractionDigits:0})+'</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Total Cost Basis</div><div class="value">$'+totalCost.toLocaleString()+'</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Unrealized Gain</div><div class="value positive">+$'+totalGain.toLocaleString()+'</div><div class="change positive">\u2191 '+(totalGain/totalCost*100).toFixed(1)+'%</div></div>';
+    const g2 = document.getElementById('portfolioChart').getContext('2d');
+    const grad2 = g2.createLinearGradient(0,0,0,280); grad2.addColorStop(0,accentRGBA(0.15)); grad2.addColorStop(1,accentRGBA(0));
+    new Chart(g2,{type:'line',data:{labels:MONTHS.map(m=>m.substring(2)),datasets:[{label:'Portfolio',data:PORT_HIST,borderColor:CHART_ACCENT,backgroundColor:grad2,fill:true,tension:0.4,borderWidth:3,pointRadius:4,pointBackgroundColor:CHART_ACCENT,pointBorderColor:_t.vars['--bg-white'],pointBorderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:CHART_GRID},ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}},x:{grid:{display:false}}}}});
+    renderRows('holdingsBody',HOLDINGS,h=>{const g=h.value-h.cost;const cls=g>=0?'positive':'negative';const s=g>=0?'+':'';return '<td style="color:var(--accent);font-weight:600;">'+h.sym+'</td><td style="text-align:right;">'+h.shares.toFixed(1)+'</td><td style="text-align:right;">$'+h.price.toFixed(2)+'</td><td style="text-align:right;font-weight:600;">$'+h.value.toLocaleString(undefined,{minimumFractionDigits:2})+'</td><td class="amount '+cls+'" style="text-align:right;">'+s+'$'+Math.abs(g).toLocaleString()+'</td>';});
+    makeSortable('holdingsTable');
+
+    // ── EQUITY ──
+    document.getElementById('equityCards').innerHTML =
+        '<div class="stat-card animate-in"><div class="label">Total Grant Value</div><div class="value accent">$12,600</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Vested</div><div class="value positive">$3,150</div><div class="change muted">25% vested</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Unvested</div><div class="value">$9,450</div><div class="change muted">Next vest: Apr 2026</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Stock Price</div><div class="value">$210.00</div><div class="change positive">\u2191 5.0% YTD</div></div>';
+    new Chart(document.getElementById('vestingChart'),{type:'bar',data:{labels:['Q1 25','Q2 25','Q3 25','Q4 25','Q1 26','Q2 26','Q3 26','Q4 26'],datasets:[{label:'Vested',data:[4,4,4,3,0,0,0,0],backgroundColor:CHART_ACCENT,borderRadius:4},{label:'Upcoming',data:[0,0,0,0,4,4,4,3],backgroundColor:CHART_MUTED,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{stacked:true,grid:{color:CHART_GRID},ticks:{callback:v=>v+' shares'}},x:{stacked:true,grid:{display:false}}}}});
+    renderRows('grantBody',[
+        {grant:'New Hire Grant',date:'2025-01-15',shares:60,vested:15,val:3150},
+    ],g=>'<td style="color:var(--text-primary);font-weight:500;">'+g.grant+'</td><td>'+g.date+'</td><td style="text-align:right;">'+g.shares+'</td><td style="text-align:right;">'+g.vested+'</td><td class="amount positive" style="text-align:right;">$'+g.val.toLocaleString()+'</td>');
+    makeSortable('grantTable');
+
+    // ── HOUSING ──
+    document.getElementById('housingCards').innerHTML =
+        '<div class="stat-card animate-in"><div class="label">Monthly Rent</div><div class="value accent">$1,350</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Renters Insurance</div><div class="value">$18</div><div class="change muted">per month</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Lease Term</div><div class="value" style="font-size:1.1rem;">Aug 2025 \u2013 Jul 2026</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Total Housing Cost</div><div class="value">$1,368</div><div class="change muted">per month</div></div>';
+    new Chart(document.getElementById('mortgageChart'),{type:'doughnut',data:{labels:['Rent','Renters Insurance'],datasets:[{data:[1350,18],backgroundColor:[CHART_ACCENT,'#fbbf24'],borderColor:_t.vars['--bg-white'],borderWidth:3}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{padding:12}},tooltip:{callbacks:{label:c=>' $'+c.parsed.toFixed(2)}}}}});
+    renderRows('mortgageBody',[
+        {d:'2026-02-01',desc:'Rent Payment',amt:1350},
+        {d:'2026-02-01',desc:'Renters Insurance',amt:18},
+        {d:'2026-01-01',desc:'Rent Payment',amt:1350},
+        {d:'2026-01-01',desc:'Renters Insurance',amt:18},
+        {d:'2025-12-01',desc:'Rent Payment',amt:1350},
+        {d:'2025-11-01',desc:'Rent Payment',amt:1350},
+    ],m=>'<td>'+m.d+'</td><td style="color:var(--text-primary);font-weight:500;">'+m.desc+'</td><td class="amount" style="text-align:right;">$'+m.amt.toFixed(2)+'</td>');
+
+    // ── HEALTHCARE ──
+    document.getElementById('hsaCards').innerHTML =
+        '<div class="stat-card animate-in"><div class="label">Total Value</div><div class="value positive">$1,850.30</div><div class="change muted">Cash + Investments</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Cash Balance</div><div class="value">$620.30</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Investments</div><div class="value accent">$1,230.00</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Contributions</div><div class="value positive">$150.00</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">Claims Paid</div><div class="value negative">$45.00</div></div>'+
+        '<div class="stat-card animate-in"><div class="label">YTD Return</div><div class="value positive">4.20%</div></div>';
+    new Chart(document.getElementById('hsaPie'),{type:'doughnut',data:{labels:['Cash','Investments'],datasets:[{data:[620.3,1230],backgroundColor:[CHART_ACCENT,CHART_POSITIVE],borderColor:_t.vars['--bg-white'],borderWidth:3}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{padding:12}}}}});
+    new Chart(document.getElementById('hsaBar'),{type:'bar',data:{labels:['Contributions','Claims','Interest','Fees'],datasets:[{data:[150,45,2.5,0],backgroundColor:[CHART_POSITIVE,CHART_NEGATIVE,CHART_ACCENT,'#fbbf24'],borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:CHART_GRID},ticks:{callback:v=>'$'+v}},x:{grid:{display:false}}}}});
+    renderRows('hsaHoldingsBody',[{sym:'VFIAX',shares:4.0,price:245.80,val:983.20},{sym:'VBTLX',shares:22.0,price:11.18,val:245.96}],h=>'<td style="color:var(--accent);font-weight:600;">'+h.sym+'</td><td style="text-align:right;">'+h.shares.toFixed(2)+'</td><td style="text-align:right;">$'+h.price.toFixed(2)+'</td><td style="text-align:right;font-weight:600;">$'+h.val.toLocaleString(undefined,{minimumFractionDigits:2})+'</td>');
+    renderRows('hsaTxnBody',[
+        {d:'2026-02-15',desc:'Employer HSA Contribution',type:'Contribution',amt:75.00},
+        {d:'2026-02-15',desc:'Employee HSA Contribution',type:'Contribution',amt:75.00},
+        {d:'2026-02-10',desc:'Clearview Pharmacy',type:'Healthcare',amt:-30.00},
+        {d:'2026-02-05',desc:'Eye Care Associates',type:'Healthcare',amt:-15.00},
+        {d:'2026-02-01',desc:'Interest Earned',type:'Interest',amt:2.50},
+    ],t=>{const cls=t.amt<0?'negative':'positive';return '<td>'+t.d+'</td><td style="color:var(--text-primary);font-weight:500;font-size:0.8rem;">'+t.desc+'</td><td><span class="tag bg-accent" style="font-size:0.62rem;">'+t.type+'</span></td><td class="amount '+cls+'" style="text-align:right;">$'+t.amt.toFixed(2)+'</td>';});
+
+    // ── IMPORT ──
+    renderRows('importBody', ACCOUNTS, a=>'<td>'+a.inst+'</td><td style="color:var(--text-primary);font-weight:500;">'+a.name+'</td><td><span class="tag bg-accent">'+a.type+'</span></td><td>'+a.range+'</td><td class="amount '+(a.balance>=0?'positive':'negative')+'" style="text-align:right;">$'+a.balance.toLocaleString(undefined,{minimumFractionDigits:2})+'</td>');
+    makeSortable('importTable');
+});
+</script>
+</body>
+</html>

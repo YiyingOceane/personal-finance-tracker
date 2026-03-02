@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Income</h2>
+</div>
+
+<div id="summary-cards" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;"></div>
+
+<div class="grid-2" style="margin-bottom: 1rem;">
+    <div class="card animate-in" style="animation-delay: 0.1s;">
+        <h3>Income Breakdown</h3>
+        <div class="chart-container" style="max-height: 300px;">
+            <canvas id="breakdownPie"></canvas>
+        </div>
+    </div>
+    <div class="card animate-in" style="animation-delay: 0.15s;">
+        <h3>Monthly Income</h3>
+        <div class="chart-container" style="max-height: 300px;">
+            <canvas id="historyBar"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="grid-2" style="margin-bottom: 1rem;">
+    <div class="card animate-in" style="animation-delay: 0.2s;">
+        <h3>Salary &amp; Wages</h3>
+        <table id="salaryTable">
+            <thead><tr><th>Date</th><th>Description</th><th>Account</th><th style="text-align:right;">Amount</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+    <div class="card animate-in" style="animation-delay: 0.25s;">
+        <h3>Stock Dividends</h3>
+        <table id="dividendTable">
+            <thead><tr><th>Date</th><th>Symbol</th><th style="text-align:right;">Amount</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card animate-in" style="animation-delay: 0.3s;">
+        <h3>Interest</h3>
+        <table id="interestTable">
+            <thead><tr><th>Date</th><th>Description</th><th style="text-align:right;">Amount</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+    <div class="card animate-in" style="animation-delay: 0.35s;">
+        <h3>Realized Gains</h3>
+        <table id="gainsTable">
+            <thead><tr><th>Date</th><th>Symbol</th><th style="text-align:right;">Proceeds</th><th style="text-align:right;">Gain/Loss</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+let pieChart, barChart;
+
+function loadIncome() {
+    const month = getSelectedMonth();
+    fetch('/api/income?month=' + month)
+        .then(r => r.json())
+        .then(data => {
+            renderSummary(data);
+            renderBreakdown(data);
+            renderHistory(data.monthly_history);
+            renderSalary(data.salary);
+            renderDividends(data.dividends);
+            renderInterest(data.interest);
+            renderGains(data.sells);
+            makeSortable('salaryTable');
+            makeSortable('dividendTable');
+            makeSortable('interestTable');
+            makeSortable('gainsTable');
+        });
+}
+
+function renderSummary(data) {
+    const container = document.getElementById('summary-cards');
+    const cls = data.total_income >= 0 ? 'positive' : 'negative';
+    container.innerHTML =
+        '<div class="stat-card animate-in">' +
+            '<div class="label">Total Income</div>' +
+            '<div class="value ' + cls + '">$' + data.total_income.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.03s">' +
+            '<div class="label">Salary</div>' +
+            '<div class="value">$' + data.salary_total.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.06s">' +
+            '<div class="label">Dividends</div>' +
+            '<div class="value">$' + data.dividends_total.toFixed(2) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.09s">' +
+            '<div class="label">Interest</div>' +
+            '<div class="value">$' + data.interest_total.toFixed(2) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.12s">' +
+            '<div class="label">Realized Gains</div>' +
+            '<div class="value ' + (data.realized_total >= 0 ? 'positive' : 'negative') + '">' +
+                (data.realized_total >= 0 ? '+' : '') + '$' + data.realized_total.toLocaleString(undefined, {maximumFractionDigits: 0}) +
+            '</div>' +
+        '</div>';
+}
+
+function renderBreakdown(data) {
+    const ctx = document.getElementById('breakdownPie').getContext('2d');
+    if (pieChart) pieChart.destroy();
+    const values = [data.salary_total, data.dividends_total, data.interest_total, data.realized_total].map(v => Math.max(0, v));
+    if (values.every(v => v === 0)) return;
+    pieChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Salary', 'Dividends', 'Interest', 'Realized Gains'],
+            datasets: [{
+                data: values,
+                backgroundColor: [CHART_ACCENT, CHART_POSITIVE, '#fbbf24', '#a78bfa'],
+                borderColor: '#ffffff',
+                borderWidth: 3,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '65%',
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 16 } },
+                tooltip: { callbacks: { label: ctx => ' $' + ctx.parsed.toFixed(2) } }
+            }
+        }
+    });
+}
+
+function renderHistory(history) {
+    const ctx = document.getElementById('historyBar').getContext('2d');
+    if (barChart) barChart.destroy();
+    const nonEmpty = history.filter(h => h.total > 0);
+    if (!nonEmpty.length) return;
+    barChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: history.map(h => h.month.substring(2)),
+            datasets: [
+                { label: 'Salary', data: history.map(h => h.salary), backgroundColor: CHART_ACCENT, borderRadius: 3 },
+                { label: 'Dividends', data: history.map(h => h.dividends), backgroundColor: CHART_POSITIVE, borderRadius: 3 },
+                { label: 'Interest', data: history.map(h => h.interest), backgroundColor: '#fbbf24', borderRadius: 3 },
+                { label: 'Realized Gains', data: history.map(h => h.realized_gains), backgroundColor: '#a78bfa', borderRadius: 3 },
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                y: { stacked: true, grid: { color: CHART_GRID }, ticks: { callback: v => '$' + v.toLocaleString() } },
+                x: { stacked: true, grid: { display: false } }
+            }
+        }
+    });
+}
+
+function emptyRow(cols, msg) {
+    return '<tr><td colspan="' + cols + '" style="text-align:center;color:var(--text-muted);padding:1.5rem;">' + msg + '</td></tr>';
+}
+
+function renderSalary(items) {
+    const tbody = document.querySelector('#salaryTable tbody');
+    if (!items.length) { tbody.innerHTML = emptyRow(4, 'No salary this period'); return; }
+    tbody.innerHTML = items.map(s =>
+        '<tr>' +
+            '<td>' + s.date + '</td>' +
+            '<td style="color:var(--text-primary);font-weight:500;">' + s.description + '</td>' +
+            '<td>' + s.account + '</td>' +
+            '<td class="amount positive" style="text-align:right;">+$' + s.amount.toLocaleString(undefined, {maximumFractionDigits: 2}) + '</td>' +
+        '</tr>'
+    ).join('');
+}
+
+function renderDividends(items) {
+    const tbody = document.querySelector('#dividendTable tbody');
+    if (!items.length) { tbody.innerHTML = emptyRow(3, 'No dividends this period'); return; }
+    tbody.innerHTML = items.map(d =>
+        '<tr>' +
+            '<td>' + d.date + '</td>' +
+            '<td style="color:var(--accent);font-weight:600;">' + d.symbol + '</td>' +
+            '<td class="amount positive" style="text-align:right;">+$' + d.amount.toFixed(2) + '</td>' +
+        '</tr>'
+    ).join('');
+}
+
+function renderInterest(items) {
+    const tbody = document.querySelector('#interestTable tbody');
+    if (!items.length) { tbody.innerHTML = emptyRow(3, 'No interest this period'); return; }
+    tbody.innerHTML = items.map(i =>
+        '<tr>' +
+            '<td>' + i.date + '</td>' +
+            '<td style="color:var(--text-primary);font-weight:500;">' + i.description + '</td>' +
+            '<td class="amount positive" style="text-align:right;">+$' + i.amount.toFixed(2) + '</td>' +
+        '</tr>'
+    ).join('');
+}
+
+function renderGains(items) {
+    const tbody = document.querySelector('#gainsTable tbody');
+    if (!items.length) { tbody.innerHTML = emptyRow(4, 'No realized gains this period'); return; }
+    tbody.innerHTML = items.map(s => {
+        const cls = s.realized_gain >= 0 ? 'positive' : 'negative';
+        const sign = s.realized_gain >= 0 ? '+' : '';
+        return '<tr>' +
+            '<td>' + s.date + '</td>' +
+            '<td style="color:var(--accent);font-weight:600;">' + s.symbol + '</td>' +
+            '<td class="amount" style="text-align:right;">$' + s.amount.toLocaleString(undefined, {maximumFractionDigits: 2}) + '</td>' +
+            '<td class="amount ' + cls + '" style="text-align:right;">' + sign + '$' + Math.abs(s.realized_gain).toLocaleString(undefined, {maximumFractionDigits: 2}) + '</td>' +
+        '</tr>';
+    }).join('');
+}
+
+loadIncome();
+window.addEventListener('monthChanged', loadIncome);
+</script>
+{% endblock %}

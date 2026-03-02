@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Investments</h2>
+    <span class="muted" style="font-size: 0.85rem;">Portfolio performance &amp; holdings</span>
+</div>
+
+<div id="summary-cards" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;"></div>
+
+<div class="card animate-in" style="animation-delay: 0.1s;">
+    <h3>Holdings</h3>
+    <div style="overflow-x: auto;">
+        <table id="holdingsTable">
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Name</th>
+                    <th style="text-align:right;">Qty</th>
+                    <th style="text-align:right;">Price</th>
+                    <th style="text-align:right;">Value</th>
+                    <th style="text-align:right;">Cost Basis</th>
+                    <th style="text-align:right;">Unrealized G/L</th>
+                    <th style="text-align:right;">Period Change</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="grid-2" style="margin-top: 1rem;">
+    <div class="card animate-in" style="animation-delay: 0.15s;">
+        <h3>Period Change by Holding</h3>
+        <div class="chart-container" style="max-height: 350px;">
+            <canvas id="holdingsChangeChart"></canvas>
+        </div>
+    </div>
+    <div class="card animate-in" style="animation-delay: 0.2s;">
+        <h3>Unrealized Gain/Loss</h3>
+        <div class="chart-container" style="max-height: 350px;">
+            <canvas id="gainLossChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="grid-2" style="margin-top: 1rem;">
+    <div class="card animate-in" style="animation-delay: 0.25s;">
+        <h3>Buys &amp; Sells</h3>
+        <div style="overflow-x: auto;">
+            <table id="activityTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Action</th>
+                        <th>Symbol</th>
+                        <th style="text-align:right;">Qty</th>
+                        <th style="text-align:right;">Price</th>
+                        <th style="text-align:right;">Amount</th>
+                        <th style="text-align:right;">Realized G/L</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card animate-in" style="animation-delay: 0.3s;">
+        <h3>Dividends &amp; Income</h3>
+        <table id="dividendTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Symbol</th>
+                    <th style="text-align:right;">Amount</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="grid-2" style="margin-top: 1rem;">
+    <div class="card animate-in" style="animation-delay: 0.35s;">
+        <h3>Portfolio Value Over Time</h3>
+        <div class="chart-container" style="max-height: 300px;">
+            <canvas id="portfolioChart"></canvas>
+        </div>
+    </div>
+    <div class="card animate-in" style="animation-delay: 0.4s;">
+        <h3>Accounts</h3>
+        <table id="accountsTable">
+            <thead>
+                <tr><th>Account</th><th>Type</th><th style="text-align:right;">Value</th><th style="text-align:right;">Change</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+let portfolioChart, holdingsChangeChart, gainLossChart;
+
+function loadInvestments() {
+    const month = getSelectedMonth();
+    fetch('/api/investments?month=' + month)
+        .then(r => r.json())
+        .then(data => {
+            renderSummary(data);
+            renderHoldings(data.holdings || []);
+            renderHoldingsChangeChart(data.holdings || []);
+            renderGainLossChart(data.holdings || []);
+            renderActivity(data.activities || []);
+            renderDividends(data.dividends || []);
+            renderPortfolioChart(data);
+            renderAccounts(data.accounts);
+            makeSortable('holdingsTable');
+            makeSortable('activityTable');
+            makeSortable('dividendTable');
+            makeSortable('accountsTable');
+        });
+}
+loadInvestments();
+window.addEventListener('monthChanged', loadInvestments);
+
+function renderSummary(data) {
+    const container = document.getElementById('summary-cards');
+    const holdings = data.holdings || [];
+    const totalUnrealized = holdings.reduce((s, h) => s + h.gain_loss, 0);
+    const totalPeriodChange = holdings.reduce((s, h) => s + h.period_change, 0);
+    const cls1 = totalPeriodChange >= 0 ? 'positive' : 'negative';
+    const cls2 = totalUnrealized >= 0 ? 'positive' : 'negative';
+
+    container.innerHTML =
+        '<div class="stat-card animate-in">' +
+            '<div class="label">Total Portfolio</div>' +
+            '<div class="value accent">$' + data.total_current.toLocaleString() + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.03s">' +
+            '<div class="label">Period Change</div>' +
+            '<div class="value ' + cls1 + '">' + (totalPeriodChange >= 0 ? '+' : '') + '$' + totalPeriodChange.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.06s">' +
+            '<div class="label">Unrealized G/L</div>' +
+            '<div class="value ' + cls2 + '">' + (totalUnrealized >= 0 ? '+' : '') + '$' + totalUnrealized.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.09s">' +
+            '<div class="label">Bought</div>' +
+            '<div class="value">$' + (data.total_bought || 0).toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.12s">' +
+            '<div class="label">Sold</div>' +
+            '<div class="value">$' + (data.total_sold || 0).toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.15s">' +
+            '<div class="label">Realized G/L</div>' +
+            '<div class="value ' + ((data.realized_gains || {}).total >= 0 ? 'positive' : 'negative') + '">' +
+                (((data.realized_gains || {}).total >= 0 ? '+$' : '-$') + Math.abs((data.realized_gains || {}).total || 0).toLocaleString()) +
+            '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.18s">' +
+            '<div class="label">Dividends</div>' +
+            '<div class="value positive">+$' + (data.total_dividends || 0).toFixed(2) + '</div>' +
+        '</div>';
+}
+
+function renderHoldings(holdings) {
+    const tbody = document.querySelector('#holdingsTable tbody');
+    if (!holdings.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem;">Import a Fidelity statement to see holdings</td></tr>';
+        return;
+    }
+    tbody.innerHTML = holdings.map(h => {
+        const glCls = h.gain_loss >= 0 ? 'positive' : 'negative';
+        const pcCls = h.period_change >= 0 ? 'positive' : 'negative';
+        const glSign = h.gain_loss >= 0 ? '+' : '';
+        const pcSign = h.period_change >= 0 ? '+' : '';
+        return '<tr>' +
+            '<td style="color:var(--accent);font-weight:600;">' + h.symbol + '</td>' +
+            '<td style="font-size:0.82rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + h.description + '</td>' +
+            '<td class="amount" style="text-align:right;">' + h.quantity.toFixed(h.quantity % 1 ? 3 : 0) + '</td>' +
+            '<td class="amount" style="text-align:right;">$' + h.price.toFixed(2) + '</td>' +
+            '<td class="amount" style="text-align:right;color:var(--text-primary);">$' + h.ending_value.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</td>' +
+            '<td class="amount" style="text-align:right;">$' + h.cost_basis.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</td>' +
+            '<td class="amount ' + glCls + '" style="text-align:right;">' + glSign + '$' + Math.abs(h.gain_loss).toLocaleString(undefined, {maximumFractionDigits: 0}) +
+                ' <span style="font-size:0.75rem;opacity:0.7;">(' + glSign + h.gain_loss_pct + '%)</span></td>' +
+            '<td class="amount ' + pcCls + '" style="text-align:right;">' + pcSign + '$' + Math.abs(h.period_change).toLocaleString(undefined, {maximumFractionDigits: 0}) +
+                ' <span style="font-size:0.75rem;opacity:0.7;">(' + pcSign + h.period_change_pct + '%)</span></td>' +
+        '</tr>';
+    }).join('');
+}
+
+function renderHoldingsChangeChart(holdings) {
+    if (!holdings.length) return;
+    const sorted = [...holdings].filter(h => h.period_change !== 0).sort((a, b) => Math.abs(b.period_change) - Math.abs(a.period_change)).slice(0, 12);
+    if (!sorted.length) return;
+    const ctx = document.getElementById('holdingsChangeChart').getContext('2d');
+    if (holdingsChangeChart) holdingsChangeChart.destroy();
+    holdingsChangeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(h => h.symbol),
+            datasets: [{
+                label: 'Period Change ($)',
+                data: sorted.map(h => h.period_change),
+                backgroundColor: sorted.map(h => h.period_change >= 0 ? CHART_POSITIVE : CHART_NEGATIVE),
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => (ctx.parsed.y >= 0 ? '+' : '') + '$' + ctx.parsed.y.toLocaleString() } }
+            },
+            scales: {
+                y: { grid: { color: CHART_GRID }, ticks: { callback: v => '$' + v.toLocaleString() } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderGainLossChart(holdings) {
+    if (!holdings.length) return;
+    const sorted = [...holdings].filter(h => h.gain_loss !== 0).sort((a, b) => b.gain_loss - a.gain_loss).slice(0, 12);
+    if (!sorted.length) return;
+    const ctx = document.getElementById('gainLossChart').getContext('2d');
+    if (gainLossChart) gainLossChart.destroy();
+    gainLossChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(h => h.symbol),
+            datasets: [{
+                label: 'Unrealized G/L',
+                data: sorted.map(h => h.gain_loss),
+                backgroundColor: sorted.map(h => h.gain_loss >= 0 ? CHART_POSITIVE : CHART_NEGATIVE),
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => (ctx.parsed.x >= 0 ? '+' : '') + '$' + ctx.parsed.x.toLocaleString() } }
+            },
+            scales: {
+                x: { grid: { color: CHART_GRID }, ticks: { callback: v => '$' + v.toLocaleString() } },
+                y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+}
+
+function renderActivity(activities) {
+    const tbody = document.querySelector('#activityTable tbody');
+    if (!activities.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:1.5rem;">No activity this period</td></tr>';
+        return;
+    }
+    tbody.innerHTML = activities.map(a => {
+        const isBuy = a.action === 'bought';
+        const actionCls = isBuy ? 'accent' : 'negative';
+        const amtCls = isBuy ? 'negative' : 'positive';
+        const glHtml = a.realized_gain ? '<span class="positive">+$' + a.realized_gain.toLocaleString() + '</span>' : '';
+        return '<tr>' +
+            '<td>' + a.date.substring(5) + '</td>' +
+            '<td><span class="tag ' + (isBuy ? 'bg-accent' : 'bg-negative') + '">' + a.action.toUpperCase() + '</span></td>' +
+            '<td style="color:var(--accent);font-weight:600;">' + a.symbol + '</td>' +
+            '<td class="amount" style="text-align:right;">' + a.quantity.toFixed(a.quantity % 1 ? 3 : 0) + '</td>' +
+            '<td class="amount" style="text-align:right;">$' + a.price.toFixed(2) + '</td>' +
+            '<td class="amount ' + amtCls + '" style="text-align:right;">' + (a.amount < 0 ? '-' : '+') + '$' + Math.abs(a.amount).toLocaleString(undefined, {maximumFractionDigits: 2}) + '</td>' +
+            '<td style="text-align:right;">' + glHtml + '</td>' +
+        '</tr>';
+    }).join('');
+}
+
+function renderDividends(dividends) {
+    const tbody = document.querySelector('#dividendTable tbody');
+    if (!dividends.length) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:1.5rem;">No dividends this period</td></tr>';
+        return;
+    }
+    tbody.innerHTML = dividends.map(d =>
+        '<tr>' +
+            '<td>' + d.date.substring(5) + '</td>' +
+            '<td style="color:var(--accent);font-weight:600;">' + d.symbol + '</td>' +
+            '<td class="amount positive" style="text-align:right;">+$' + d.amount.toFixed(2) + '</td>' +
+        '</tr>'
+    ).join('');
+}
+
+function renderPortfolioChart(data) {
+    const monthMap = {};
+    data.accounts.forEach(acct => {
+        acct.history.forEach(h => {
+            monthMap[h.month] = (monthMap[h.month] || 0) + h.balance;
+        });
+    });
+    const months = Object.keys(monthMap).sort();
+    if (!months.length) return;
+    const totals = months.map(m => monthMap[m]);
+
+    const ctx = document.getElementById('portfolioChart').getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+    gradient.addColorStop(0, accentRGBA(0.15));
+    gradient.addColorStop(1, accentRGBA(0));
+
+    if (portfolioChart) portfolioChart.destroy();
+    portfolioChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: months,
+            datasets: [{
+                label: 'Total Portfolio',
+                data: totals,
+                borderColor: CHART_ACCENT,
+                backgroundColor: gradient,
+                fill: true,
+                tension: 0.4,
+                borderWidth: 2.5,
+                pointRadius: 4,
+                pointBackgroundColor: CHART_ACCENT,
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { grid: { color: CHART_GRID }, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderAccounts(accounts) {
+    const tbody = document.querySelector('#accountsTable tbody');
+    tbody.innerHTML = accounts.map(a => {
+        const cls = a.total_change >= 0 ? 'positive' : 'negative';
+        const sign = a.total_change >= 0 ? '+' : '';
+        return '<tr>' +
+            '<td style="color:var(--text-primary);font-weight:500;">' + a.name + '</td>' +
+            '<td><span class="tag bg-accent">' + a.type.toUpperCase() + '</span></td>' +
+            '<td class="amount" style="text-align:right;color:var(--text-primary);">$' + a.current_balance.toLocaleString() + '</td>' +
+            '<td class="amount ' + cls + '" style="text-align:right;">' + sign + '$' + a.total_change.toLocaleString() + '</td>' +
+        '</tr>';
+    }).join('');
+}
+</script>
+{% endblock %}

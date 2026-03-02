@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+    <h2>Spending</h2>
+    <span class="muted" style="font-size: 0.85rem;">Excludes transfers, income &amp; interest</span>
+</div>
+
+<div id="summary-row" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;"></div>
+
+<div class="grid-2" style="margin-bottom: 1rem;">
+    <div class="card animate-in">
+        <h3>By Category</h3>
+        <div class="chart-container" style="max-height: 340px;">
+            <canvas id="categoryPie"></canvas>
+        </div>
+    </div>
+    <div class="card animate-in" style="animation-delay: 0.1s;">
+        <h3>Month over Month</h3>
+        <div class="chart-container" style="max-height: 340px;">
+            <canvas id="comparisonBar"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="card animate-in" style="animation-delay: 0.2s;">
+    <h3 style="display:flex;align-items:center;gap:0.75rem;">
+        Spending Transactions
+        <span id="categoryFilter" style="display:none;font-size:0.75rem;text-transform:none;letter-spacing:0;color:var(--accent);cursor:pointer;"
+              onclick="filterByCategory(activeCategory)"></span>
+    </h3>
+    <table id="txnTable">
+        <thead>
+            <tr><th>Date</th><th>Description</th><th>Category</th><th style="text-align:right;">Amount</th><th>Account</th></tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+let pieChart, barChart, allTxns = [], activeCategory = null;
+
+function loadSpending() {
+    const month = getSelectedMonth();
+    activeCategory = null;
+    fetch('/api/spending?month=' + month)
+        .then(r => r.json())
+        .then(data => {
+            allTxns = data.transactions;
+            renderSummary(data);
+            renderPie(data.categories);
+            renderComparison(data.comparison);
+            renderTransactions(allTxns);
+            makeSortable('txnTable');
+        });
+}
+
+function filterByCategory(category) {
+    const filterEl = document.getElementById('categoryFilter');
+    if (activeCategory === category) {
+        activeCategory = null;
+        renderTransactions(allTxns);
+        filterEl.style.display = 'none';
+    } else {
+        activeCategory = category;
+        const filtered = allTxns.filter(t => t.category === category);
+        renderTransactions(filtered);
+        filterEl.textContent = category + ' (' + filtered.length + ') \u2715';
+        filterEl.style.display = 'inline';
+    }
+    makeSortable('txnTable');
+}
+
+function renderSummary(data) {
+    const container = document.getElementById('summary-row');
+    const total = data.total_spending || 0;
+    const comparison = data.comparison || [];
+    const topCats = comparison.filter(c => c.current > 0).sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 4);
+
+    let html = '<div class="stat-card animate-in">' +
+        '<div class="label">Total Spending</div>' +
+        '<div class="value negative">$' + total.toLocaleString(undefined, {minimumFractionDigits: 2}) + '</div>' +
+        '<div class="change muted">' + data.transactions.length + ' transactions</div>' +
+    '</div>';
+    topCats.forEach((c, i) => {
+        const cls = c.change > 0 ? 'negative' : 'positive';
+        const arrow = c.change > 0 ? '\u2191' : '\u2193';
+        html += '<div class="stat-card animate-in" style="animation-delay:' + ((i + 1) * 0.04) + 's">' +
+            '<div class="label">' + c.name + '</div>' +
+            '<div class="value" style="font-size:1.5rem;">$' + c.current.toFixed(0) + '</div>' +
+            '<div class="change ' + cls + '">' + arrow + ' $' + Math.abs(c.change).toFixed(0) + ' vs last month</div>' +
+        '</div>';
+    });
+    container.innerHTML = html;
+}
+
+const catEmoji = {
+    'Dining': '\uD83C\uDF5C', 'Groceries': '\uD83D\uDED2', 'Shopping': '\uD83D\uDECD\uFE0F',
+    'Travel': '\u2708\uFE0F', 'Gas': '\u26FD', 'Entertainment': '\uD83C\uDFAC',
+    'Subscription': '\uD83D\uDD01', 'Utilities': '\uD83D\uDCA1', 'Healthcare': '\uD83C\uDFE5',
+    'Housing': '\uD83C\uDFE0', 'Education': '\uD83D\uDCDA', 'Personal Care': '\uD83D\uDC87',
+    'Insurance': '\uD83D\uDEE1\uFE0F', 'Pet': '\uD83D\uDC3E', 'Other': '\uD83D\uDCCC',
+};
+function emojiLabel(name) { return (catEmoji[name] || '') + ' ' + name; }
+
+function renderPie(categories) {
+    const ctx = document.getElementById('categoryPie').getContext('2d');
+    if (pieChart) pieChart.destroy();
+    const palette = CHART_PALETTE;
+    pieChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: categories.map(c => emojiLabel(c.name)),
+            datasets: [{
+                data: categories.map(c => c.total),
+                backgroundColor: palette.slice(0, categories.length),
+                borderColor: '#ffffff',
+                borderWidth: 3,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '65%',
+            onClick: (evt, elements) => {
+                if (elements.length > 0) {
+                    const idx = elements[0].index;
+                    filterByCategory(categories[idx].name);
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 16 },
+                    onClick: (evt, legendItem, legend) => {
+                        const idx = legendItem.index;
+                        filterByCategory(categories[idx].name);
+                    }
+                },
+                tooltip: { callbacks: { label: ctx => ' $' + ctx.parsed.toFixed(2) } }
+            }
+        }
+    });
+}
+
+function renderComparison(comparison) {
+    const ctx = document.getElementById('comparisonBar').getContext('2d');
+    if (barChart) barChart.destroy();
+    barChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: comparison.map(c => c.name),
+            datasets: [
+                { label: 'This Month', data: comparison.map(c => c.current), backgroundColor: CHART_ACCENT, borderRadius: 6 },
+                { label: 'Last Month', data: comparison.map(c => c.previous), backgroundColor: CHART_MUTED, borderRadius: 6 },
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                y: { grid: { color: CHART_GRID }, ticks: { callback: v => '$' + v } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderTransactions(txns) {
+    const tbody = document.querySelector('#txnTable tbody');
+    tbody.innerHTML = txns.map(t =>
+        '<tr>' +
+            '<td>' + t.date + '</td>' +
+            '<td style="color:var(--text-primary);font-weight:500;">' + t.description + '</td>' +
+            '<td><span class="tag bg-accent">' + t.category + '</span></td>' +
+            '<td class="amount negative" style="text-align:right;">$' + t.amount.toFixed(2) + '</td>' +
+            '<td>' + t.account + '</td>' +
+        '</tr>'
+    ).join('');
+}
+
+loadSpending();
+window.addEventListener('monthChanged', loadSpending);
+</script>
+{% endblock %}

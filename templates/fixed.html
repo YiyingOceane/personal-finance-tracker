@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Housing</h2>
+    <span class="muted" style="font-size: 0.85rem;">Mortgage &amp; loan details</span>
+</div>
+
+<div id="summary-cards" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;"></div>
+
+<div id="loan-details" style="display:none;">
+    <div class="grid-2" style="margin-bottom: 1rem;">
+        <div class="card animate-in" style="animation-delay: 0.1s;">
+            <h3>Payment Breakdown</h3>
+            <div class="chart-container" style="max-height: 260px;">
+                <canvas id="paymentPie"></canvas>
+            </div>
+        </div>
+        <div class="card animate-in" style="animation-delay: 0.15s;">
+            <h3>Loan Information</h3>
+            <table id="loanInfoTable">
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom: 1rem;">
+        <div class="card animate-in" style="animation-delay: 0.2s;">
+            <h3>Year-to-Date Payments</h3>
+            <div class="chart-container" style="max-height: 260px;">
+                <canvas id="ytdBar"></canvas>
+            </div>
+        </div>
+        <div class="card animate-in" style="animation-delay: 0.25s;">
+            <h3>Amortization Snapshot</h3>
+            <div class="chart-container" style="max-height: 260px;">
+                <canvas id="amortChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="empty-state" class="card animate-in" style="text-align:center;padding:3rem;display:none;">
+    <div style="font-size:2rem;margin-bottom:0.75rem;">&#127968;</div>
+    <div style="color:var(--text-secondary);font-size:0.95rem;">No housing data yet.</div>
+    <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem;">Import a mortgage statement to get started.</div>
+</div>
+
+<script>
+let paymentPie, ytdBar, amortChart;
+
+function loadFixed() {
+    fetch('/api/fixed')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.mortgage) {
+                document.getElementById('empty-state').style.display = 'block';
+                document.getElementById('loan-details').style.display = 'none';
+                document.getElementById('summary-cards').innerHTML = '';
+                return;
+            }
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('loan-details').style.display = 'block';
+            const m = data.mortgage;
+            renderSummary(m);
+            renderPaymentBreakdown(m);
+            renderLoanInfo(m);
+            renderYTD(m);
+            renderAmortization(m);
+        });
+}
+loadFixed();
+window.addEventListener('monthChanged', loadFixed);
+
+function renderSummary(m) {
+    const container = document.getElementById('summary-cards');
+    const pctPrincipal = m.monthly_payment > 0 ? (m.principal_portion / m.monthly_payment * 100).toFixed(1) : 0;
+    container.innerHTML =
+        '<div class="stat-card animate-in">' +
+            '<div class="label">Monthly Payment</div>' +
+            '<div class="value negative">$' + m.monthly_payment.toLocaleString(undefined, {minimumFractionDigits: 2}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.03s">' +
+            '<div class="label">Principal Balance</div>' +
+            '<div class="value">$' + m.principal_balance.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.06s">' +
+            '<div class="label">Interest Rate</div>' +
+            '<div class="value accent">' + m.interest_rate.toFixed(3) + '%</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.09s">' +
+            '<div class="label">Principal / Payment</div>' +
+            '<div class="value positive">$' + m.principal_portion.toFixed(2) + '</div>' +
+            '<div class="change muted">' + pctPrincipal + '% of payment</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.12s">' +
+            '<div class="label">Interest / Payment</div>' +
+            '<div class="value negative">$' + m.interest_portion.toFixed(2) + '</div>' +
+        '</div>' +
+        '<div class="stat-card animate-in" style="animation-delay:0.15s">' +
+            '<div class="label">Next Due</div>' +
+            '<div class="value" style="font-size:1.4rem;">' + m.payment_due_date + '</div>' +
+        '</div>';
+}
+
+function renderPaymentBreakdown(m) {
+    const ctx = document.getElementById('paymentPie').getContext('2d');
+    if (paymentPie) paymentPie.destroy();
+    const values = [m.principal_portion, m.interest_portion];
+    const labels = ['Principal', 'Interest'];
+    const colors = ['#059669', '#dc2626'];
+    if (m.escrow_portion > 0) {
+        values.push(m.escrow_portion);
+        labels.push('Escrow');
+        colors.push('#f59e0b');
+    }
+    paymentPie = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors,
+                borderColor: '#ffffff',
+                borderWidth: 3,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '65%',
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 16 } },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = (ctx.parsed / total * 100).toFixed(1);
+                            return ' $' + ctx.parsed.toFixed(2) + ' (' + pct + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderLoanInfo(m) {
+    const tbody = document.querySelector('#loanInfoTable tbody');
+    const rows = [
+        ['Lender', m.lender],
+        ['Loan Number', m.loan_number],
+        ['Property', m.property_address],
+        ['Interest Rate', m.interest_rate.toFixed(3) + '%'],
+        ['Statement Date', m.statement_date],
+        ['Next Payment Due', m.payment_due_date],
+    ];
+    if (m.escrow_balance > 0) {
+        rows.push(['Escrow Balance', '$' + m.escrow_balance.toLocaleString(undefined, {minimumFractionDigits: 2})]);
+    }
+    tbody.innerHTML = rows.map(([label, value]) =>
+        '<tr>' +
+            '<td style="font-weight:500;color:var(--text-primary);width:40%;">' + label + '</td>' +
+            '<td>' + value + '</td>' +
+        '</tr>'
+    ).join('');
+}
+
+function renderYTD(m) {
+    const ctx = document.getElementById('ytdBar').getContext('2d');
+    if (ytdBar) ytdBar.destroy();
+    if (m.ytd_total === 0) return;
+    ytdBar = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Principal', 'Interest', 'Total'],
+            datasets: [{
+                data: [m.ytd_principal, m.ytd_interest, m.ytd_total],
+                backgroundColor: ['#059669', '#dc2626', '#2563eb'],
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => '$' + ctx.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2}) } }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(226, 229, 234, 0.8)' }, ticks: { callback: v => '$' + v.toLocaleString() } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderAmortization(m) {
+    const ctx = document.getElementById('amortChart').getContext('2d');
+    if (amortChart) amortChart.destroy();
+
+    // Project amortization from current balance
+    const rate = m.interest_rate / 100 / 12;
+    const payment = m.principal_portion + m.interest_portion;
+    let balance = m.principal_balance;
+    const labels = [];
+    const balances = [];
+    const principalParts = [];
+    const interestParts = [];
+    const year = new Date().getFullYear();
+
+    for (let yr = 0; yr <= 30 && balance > 0; yr++) {
+        labels.push(year + yr);
+        balances.push(Math.round(balance));
+        const intThisMonth = balance * rate;
+        principalParts.push(Math.round(payment - intThisMonth));
+        interestParts.push(Math.round(intThisMonth));
+        // Advance 12 months
+        for (let mo = 0; mo < 12 && balance > 0; mo++) {
+            const interest = balance * rate;
+            const principal = Math.min(payment - interest, balance);
+            balance -= principal;
+        }
+    }
+
+    amortChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Remaining Balance',
+                data: balances,
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                fill: true,
+                tension: 0.4,
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHitRadius: 8,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => '$' + ctx.parsed.y.toLocaleString() } }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(226, 229, 234, 0.8)' }, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } },
+                x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}
