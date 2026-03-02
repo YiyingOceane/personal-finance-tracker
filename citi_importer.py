@@ -6,6 +6,7 @@ from datetime import datetime
 import pdfplumber
 
 from categorizer import categorize
+from parse_utils import clean_amount_unsigned
 
 
 def is_citi_pdf(filepath):
@@ -16,6 +17,8 @@ def is_citi_pdf(filepath):
         return ("Citi" in text or "citicards" in text.lower()) and (
             "STATEMENT" in text or "Account Statement" in text
         )
+    except (FileNotFoundError, PermissionError):
+        raise
     except Exception:
         return False
 
@@ -52,7 +55,7 @@ def _parse_credit_card(pages_text, full_text):
 
     # Balance
     bal_match = re.search(r"New balance(?:\s+as of \d{2}/\d{2}/\d{2})?:\s*\$?([\d,]+\.\d{2})", first_page)
-    balance = _clean(bal_match.group(1)) if bal_match else 0
+    balance = clean_amount_unsigned(bal_match.group(1)) if bal_match else 0
 
     # Statement date
     stmt_match = re.search(r"as of (\d{2}/\d{2}/\d{2})", first_page)
@@ -131,7 +134,7 @@ def _parse_cc_transactions(text, year):
                 continue
 
         description = rest[:amt_match.start()].strip()
-        amount = _clean(amt_match.group(1))
+        amount = clean_amount_unsigned(amt_match.group(1))
 
         # Check if the original string had a negative sign
         raw_amt = amt_match.group(1)
@@ -205,8 +208,8 @@ def _parse_savings(pages_text, full_text):
         this_period_match = re.search(
             r"Citi Priority Relationship Total\s+\$?([\d,.]+)\s+\$?([\d,.]+)", full_text
         )
-    opening_balance = _clean(this_period_match.group(1)) if this_period_match else 0
-    closing_balance = _clean(this_period_match.group(2)) if this_period_match else 0
+    opening_balance = clean_amount_unsigned(this_period_match.group(1)) if this_period_match else 0
+    closing_balance = clean_amount_unsigned(this_period_match.group(2)) if this_period_match else 0
 
     # Interest earned
     interest_match = re.search(
@@ -214,8 +217,8 @@ def _parse_savings(pages_text, full_text):
         r"Citi Priority Relationship Total\s+\$?([\d,.]+)\s+\$?([\d,.]+)",
         full_text, re.DOTALL,
     )
-    interest_this_period = _clean(interest_match.group(1)) if interest_match else 0
-    interest_ytd = _clean(interest_match.group(2)) if interest_match else 0
+    interest_this_period = clean_amount_unsigned(interest_match.group(1)) if interest_match else 0
+    interest_ytd = clean_amount_unsigned(interest_match.group(2)) if interest_match else 0
 
     # APY
     apy_match = re.search(r"Annual Percentage Yield Earned\s+([\d.]+)%", full_text)
@@ -284,7 +287,7 @@ def _parse_savings_transactions(pages_text, year):
             ])
 
             # The first number is the transaction amount
-            amount_val = _clean(nums[0])
+            amount_val = clean_amount_unsigned(nums[0])
 
             if is_debit:
                 amount = -amount_val
@@ -314,6 +317,3 @@ def _parse_savings_transactions(pages_text, year):
     return transactions
 
 
-def _clean(s):
-    """Clean a number string."""
-    return float(s.replace(",", "").replace("$", "").replace("-", "").strip())

@@ -7,6 +7,7 @@ from datetime import datetime
 import pdfplumber
 
 from categorizer import categorize
+from parse_utils import clean_amount_unsigned
 
 # Map Wells Fargo CSV categories to our categories
 _WF_CAT_MAP = {
@@ -29,6 +30,8 @@ def is_wellsfargo_pdf(filepath):
         with pdfplumber.open(filepath) as pdf:
             text = pdf.pages[0].extract_text() or ""
         return "Wells Fargo" in text and ("Summary of Account Activity" in text or "Billing Cycle" in text)
+    except (FileNotFoundError, PermissionError):
+        raise
     except Exception:
         return False
 
@@ -56,7 +59,7 @@ def parse_wellsfargo_pdf(filepath):
 
     # Balance
     bal_match = re.search(r"New Balance\s+\$?([\d,]+\.\d{2})", first_page)
-    balance = _clean(bal_match.group(1)) if bal_match else 0
+    balance = clean_amount_unsigned(bal_match.group(1)) if bal_match else 0
 
     # Billing cycle for month
     cycle_match = re.search(r"Billing Cycle\s+(\d{2}/\d{2}/\d{4})\s+to\s+(\d{2}/\d{2}/\d{4})", first_page)
@@ -115,7 +118,7 @@ def parse_wellsfargo_pdf(filepath):
 
         post_date = match.group(2)
         description = match.group(3).strip()
-        amount = _clean(match.group(4))
+        amount = clean_amount_unsigned(match.group(4))
 
         # Remove reference numbers, hashes, and trailing booking codes
         description = re.sub(r"^[\dA-Z]{8,}\s+", "", description)
@@ -181,7 +184,7 @@ def parse_wellsfargo_csv(filepath):
                 continue
 
             # Parse amount (remove $ sign)
-            amount_val = _clean(amount_str)
+            amount_val = clean_amount_unsigned(amount_str)
             is_negative = "-" in amount_str
 
             # Use payee as description if shorter/cleaner
@@ -222,6 +225,3 @@ def parse_wellsfargo_csv(filepath):
     }
 
 
-def _clean(s):
-    """Clean a number string."""
-    return float(s.replace(",", "").replace("$", "").replace("-", "").strip())

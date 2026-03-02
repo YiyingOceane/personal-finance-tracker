@@ -5,6 +5,8 @@ from datetime import datetime
 
 import pdfplumber
 
+from parse_utils import clean_amount_unsigned
+
 
 def is_mortgage_pdf(filepath):
     """Check if a PDF is a mortgage loan statement."""
@@ -12,6 +14,8 @@ def is_mortgage_pdf(filepath):
         with pdfplumber.open(filepath) as pdf:
             first_page = pdf.pages[0].extract_text() or ""
         return "MORTGAGE LOAN STATEMENT" in first_page
+    except (FileNotFoundError, PermissionError):
+        raise
     except Exception:
         return False
 
@@ -111,58 +115,65 @@ def parse_mortgage_pdf(filepath):
     # Principal balance
     bal_match = re.search(r"(?:Interest Bearing )?Principal Balance\s+\$?([\d,]+\.\d{2})", text)
     if bal_match:
-        result["principal_balance"] = _clean(bal_match.group(1))
+        result["principal_balance"] = clean_amount_unsigned(bal_match.group(1))
 
     # Monthly payment (Amount Due or Regular Monthly Payment)
     pmt_match = re.search(r"Regular Monthly Payment\s+\$?([\d,]+\.\d{2})", text)
     if pmt_match:
-        result["monthly_payment"] = _clean(pmt_match.group(1))
+        result["monthly_payment"] = clean_amount_unsigned(pmt_match.group(1))
     else:
         due_match = re.search(r"Amount Due:\s+\$?([\d,]+\.\d{2})", text)
         if due_match:
-            result["monthly_payment"] = _clean(due_match.group(1))
+            result["monthly_payment"] = clean_amount_unsigned(due_match.group(1))
 
     # Escrow balance
     esc_match = re.search(r"Escrow Balance\s+\$?([\d,]+\.\d{2})", text)
     if esc_match:
-        result["escrow_balance"] = _clean(esc_match.group(1))
+        result["escrow_balance"] = clean_amount_unsigned(esc_match.group(1))
 
-    # Payment breakdown (Explanation of Amounts Due)
-    prin_match = re.search(r"Principal\s+\$?([\d,]+\.\d{2})", text)
+    # Payment breakdown — scope to "Explanation of Amounts Due" section
+    amounts_section = re.search(
+        r"Explanation of Amounts? Due(.*?)(?:Past Payment|Transaction Activity|$)",
+        text, re.DOTALL,
+    )
+    amt_text = amounts_section.group(1) if amounts_section else ""
+
+    prin_match = re.search(r"Principal\s+\$?([\d,]+\.\d{2})", amt_text)
     if prin_match:
-        result["principal_portion"] = _clean(prin_match.group(1))
+        result["principal_portion"] = clean_amount_unsigned(prin_match.group(1))
 
-    # Interest portion - look for it in the "Explanation of Amounts Due" section
-    int_match = re.search(r"Interest\s+\$?([\d,]+\.\d{2})", text)
+    int_match = re.search(r"Interest\s+\$?([\d,]+\.\d{2})", amt_text)
     if int_match:
-        result["interest_portion"] = _clean(int_match.group(1))
+        result["interest_portion"] = clean_amount_unsigned(int_match.group(1))
 
-    esc_pmt_match = re.search(r"Escrow Amount.*?\$?([\d,]+\.\d{2})", text)
+    esc_pmt_match = re.search(r"Escrow Amount.*?\$?([\d,]+\.\d{2})", amt_text)
     if esc_pmt_match:
-        result["escrow_portion"] = _clean(esc_pmt_match.group(1))
+        result["escrow_portion"] = clean_amount_unsigned(esc_pmt_match.group(1))
 
-    # Year to date from "Past Payment Breakdown"
-    # Pattern: "Principal $413.11 $824.12" (paid since, year to date)
-    ytd_section = re.search(r"Past Payment Breakdown.*?Total\s+\$?[\d,]+\.\d{2}\s+\$?([\d,]+\.\d{2})", text, re.DOTALL)
+    # Year to date — scope to "Past Payment Breakdown" section
+    ytd_section_match = re.search(
+        r"Past Payment Breakdown(.*?)(?:Transaction Activity|$)",
+        text, re.DOTALL,
+    )
+    ytd_text = ytd_section_match.group(1) if ytd_section_match else ""
 
-    # Parse individual YTD lines
-    ytd_prin = re.search(r"Principal\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})", text)
+    ytd_prin = re.search(r"Principal\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})", ytd_text)
     if ytd_prin:
-        result["last_payment_principal"] = _clean(ytd_prin.group(1))
-        result["ytd_principal"] = _clean(ytd_prin.group(2))
+        result["last_payment_principal"] = clean_amount_unsigned(ytd_prin.group(1))
+        result["ytd_principal"] = clean_amount_unsigned(ytd_prin.group(2))
 
-    ytd_int = re.search(r"Interest\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})", text)
+    ytd_int = re.search(r"Interest\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})", ytd_text)
     if ytd_int:
-        result["last_payment_interest"] = _clean(ytd_int.group(1))
-        result["ytd_interest"] = _clean(ytd_int.group(2))
+        result["last_payment_interest"] = clean_amount_unsigned(ytd_int.group(1))
+        result["ytd_interest"] = clean_amount_unsigned(ytd_int.group(2))
 
-    ytd_esc = re.search(r"Escrow \(Taxes & Insurance\)\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})", text)
+    ytd_esc = re.search(r"Escrow \(Taxes & Insurance\)\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})", ytd_text)
     if ytd_esc:
-        result["ytd_escrow"] = _clean(ytd_esc.group(2))
+        result["ytd_escrow"] = clean_amount_unsigned(ytd_esc.group(2))
 
-    ytd_total_match = re.search(r"Total\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})", text)
+    ytd_total_match = re.search(r"Total\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})", ytd_text)
     if ytd_total_match:
-        result["ytd_total"] = _clean(ytd_total_match.group(2))
+        result["ytd_total"] = clean_amount_unsigned(ytd_total_match.group(2))
 
     # Transaction activity - last payment date
     txn_match = re.search(r"(\d{2}/\d{2}/\d{4})\s+Payment\s+\$?([\d,]+\.\d{2})", text)
@@ -172,6 +183,3 @@ def parse_mortgage_pdf(filepath):
     return result
 
 
-def _clean(s):
-    """Clean a number string."""
-    return float(s.replace(",", "").replace("$", "").strip())

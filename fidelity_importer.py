@@ -6,6 +6,8 @@ from datetime import datetime
 
 import pdfplumber
 
+from parse_utils import clean_amount
+
 
 # ── CSV Parsing ──────────────────────────────────────────────────────────────
 
@@ -104,15 +106,6 @@ def parse_fidelity_statement(filepath):
 
 # ── PDF Parsing ──────────────────────────────────────────────────────────────
 
-def _clean_num(s):
-    """Clean a number string: remove $, commas, trailing letters."""
-    s = s.strip().replace(",", "").replace("$", "")
-    s = re.sub(r"[a-zA-Z]+$", "", s)  # remove trailing f (FIFO marker) etc.
-    try:
-        return float(s)
-    except ValueError:
-        return 0.0
-
 
 def parse_fidelity_pdf(filepath):
     """Parse Fidelity investment report PDF. Returns holdings, activity, dividends, realized gains."""
@@ -133,10 +126,10 @@ def parse_fidelity_pdf(filepath):
 
     # Portfolio summary
     pv_match = re.search(r"Your Portfolio Value:\s*\$?([\d,]+\.\d{2})", full_text)
-    portfolio_value = _clean_num(pv_match.group(1)) if pv_match else 0
+    portfolio_value = clean_amount(pv_match.group(1)) if pv_match else 0
 
     pc_match = re.search(r"Portfolio Change from Last Period:\s*\$?([-\d,]+\.\d{2})", full_text)
-    portfolio_change = _clean_num(pc_match.group(1)) if pc_match else 0
+    portfolio_change = clean_amount(pc_match.group(1)) if pc_match else 0
 
     # Account numbers
     account_numbers = re.findall(r"Account #\s*(Z[\d-]+)", full_text)
@@ -198,8 +191,8 @@ def _parse_pdf_holdings(text):
         if not anchor:
             continue
 
-        qty = _clean_num(anchor.group(1))
-        price = _clean_num(anchor.group(2))
+        qty = clean_amount(anchor.group(1))
+        price = clean_amount(anchor.group(2))
 
         # Before the anchor: description + beginning_value
         before = line[:anchor.start()].strip()
@@ -212,7 +205,7 @@ def _parse_pdf_holdings(text):
         if beg_match:
             description = before[:beg_match.start()].strip()
             beg_str = beg_match.group(1)
-            beginning_value = 0 if beg_str == "unavailable" else _clean_num(beg_str)
+            beginning_value = 0 if beg_str == "unavailable" else clean_amount(beg_str)
         else:
             description = before
             beginning_value = 0
@@ -220,14 +213,14 @@ def _parse_pdf_holdings(text):
         # Extract after-anchor numbers
         if "not applicable" in after:
             end_match = re.search(r"\$?([\d,]+\.\d{2})", after)
-            ending_value = _clean_num(end_match.group(1)) if end_match else qty * price
+            ending_value = clean_amount(end_match.group(1)) if end_match else qty * price
             cost_basis = 0
             gain_loss = 0
         else:
             after_nums = re.findall(r"-?\$?[\d,]+\.\d{2}", after)
-            ending_value = _clean_num(after_nums[0]) if len(after_nums) >= 1 else qty * price
-            cost_basis = _clean_num(after_nums[1]) if len(after_nums) >= 2 else 0
-            gain_loss = _clean_num(after_nums[2]) if len(after_nums) >= 3 else 0
+            ending_value = clean_amount(after_nums[0]) if len(after_nums) >= 1 else qty * price
+            cost_basis = clean_amount(after_nums[1]) if len(after_nums) >= 2 else 0
+            gain_loss = clean_amount(after_nums[2]) if len(after_nums) >= 3 else 0
 
         # Remove M prefix (margin indicator)
         if description and description[0] == "M" and len(description) > 1 and description[1].isupper():
@@ -334,12 +327,12 @@ def _parse_pdf_activities(text, year):
             date_str = match.group(1)
             name = match.group(2).strip()
             action = match.group(4).lower()
-            qty = abs(_clean_num(match.group(5)))
-            price_per = _clean_num(match.group(6))
+            qty = abs(clean_amount(match.group(5)))
+            price_per = clean_amount(match.group(6))
 
             # Extract the last number on the line as transaction amount
             all_nums = re.findall(r"-?\$?[\d,]+\.\d{2}", line[match.end():])
-            amount = _clean_num(all_nums[-1]) if all_nums else qty * price_per
+            amount = clean_amount(all_nums[-1]) if all_nums else qty * price_per
 
             # For buys, amount is negative (cost); for sells, positive (proceeds)
             if action == "bought":
@@ -353,10 +346,10 @@ def _parse_pdf_activities(text, year):
                 next_line = lines[i + 1].strip()
                 gain_match = re.search(r"(?:Short|Long)-term gain:\s*\$?([\d,]+\.\d{2})", next_line)
                 if gain_match:
-                    realized_gain = _clean_num(gain_match.group(1))
+                    realized_gain = clean_amount(gain_match.group(1))
                 loss_match = re.search(r"(?:Short|Long)-term loss:\s*-?\$?([\d,]+\.\d{2})", next_line)
                 if loss_match:
-                    realized_gain = -_clean_num(loss_match.group(1))
+                    realized_gain = -clean_amount(loss_match.group(1))
 
             # Build full date
             month_num = int(date_str[:2])
@@ -410,7 +403,7 @@ def _parse_pdf_dividends(text, year):
 
             date_str = match.group(1)
             name = match.group(2).strip()
-            amount = _clean_num(match.group(5))
+            amount = clean_amount(match.group(5))
 
             month_num = int(date_str[:2])
             day_num = int(date_str[3:])
@@ -440,22 +433,22 @@ def _parse_pdf_realized_gains(text):
     # "Net Short-term Gain/Loss 459.08 783.05"  (this period, ytd)
     st_match = re.search(r"Net Short-term Gain/Loss\s+(-?[\d,]+\.\d{2})", text)
     if st_match:
-        result["short_term"] = _clean_num(st_match.group(1))
+        result["short_term"] = clean_amount(st_match.group(1))
 
     lt_match = re.search(r"Net Long-term Gain/Loss\s+(-?[\d,]+\.\d{2})", text)
     if lt_match:
-        result["long_term"] = _clean_num(lt_match.group(1))
+        result["long_term"] = clean_amount(lt_match.group(1))
 
     net_match = re.search(r"Net Gain/Loss\s+\$?([\d,]+\.\d{2})", text)
     if net_match:
-        result["total"] = _clean_num(net_match.group(1))
+        result["total"] = clean_amount(net_match.group(1))
     else:
         result["total"] = result["short_term"] + result["long_term"]
 
     # Also get YTD if available
     st_ytd = re.search(r"Net Short-term Gain/Loss\s+[\d,]+\.\d{2}\s+([\d,]+\.\d{2})", text)
     if st_ytd:
-        result["short_term_ytd"] = _clean_num(st_ytd.group(1))
+        result["short_term_ytd"] = clean_amount(st_ytd.group(1))
 
     return result
 
@@ -491,5 +484,7 @@ def is_fidelity_pdf(filepath):
         with pdfplumber.open(filepath) as pdf:
             first_page = pdf.pages[0].extract_text() or ""
         return "INVESTMENT REPORT" in first_page and "Fidelity" in first_page
+    except (FileNotFoundError, PermissionError):
+        raise
     except Exception:
         return False

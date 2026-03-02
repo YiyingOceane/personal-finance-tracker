@@ -5,6 +5,8 @@ from datetime import datetime
 
 import pdfplumber
 
+from parse_utils import clean_amount
+
 
 def is_etrade_pdf(filepath):
     """Check if a PDF is an E*Trade / Morgan Stanley at Work statement."""
@@ -12,6 +14,8 @@ def is_etrade_pdf(filepath):
         with pdfplumber.open(filepath) as pdf:
             first_page = pdf.pages[0].extract_text() or ""
         return "CLIENT STATEMENT" in first_page and "Morgan Stanley" in first_page
+    except (FileNotFoundError, PermissionError):
+        raise
     except Exception:
         return False
 
@@ -45,15 +49,15 @@ def parse_etrade_pdf(filepath):
 
     # Beginning and ending values
     beg_match = re.search(r"TOTAL BEGINNING VALUE\s+\$?([\d,]+\.\d{2})", full_text)
-    beginning_value = _clean(beg_match.group(1)) if beg_match else 0
+    beginning_value = clean_amount(beg_match.group(1)) if beg_match else 0
 
     end_match = re.search(r"TOTAL ENDING VALUE\s+\$?([\d,]+\.\d{2})", full_text)
-    ending_value = _clean(end_match.group(1)) if end_match else 0
+    ending_value = clean_amount(end_match.group(1)) if end_match else 0
 
     # Cash balance
     cash_match = re.search(r"Cash,?\s*BDP,?\s*MMFs?\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})", full_text)
     if cash_match:
-        cash_balance = _clean(cash_match.group(2))  # second is "this period"
+        cash_balance = clean_amount(cash_match.group(2))  # second is "this period"
     else:
         cash_balance = 0
 
@@ -99,15 +103,6 @@ def parse_etrade_pdf(filepath):
     }
 
 
-def _clean(s):
-    """Clean a number string."""
-    s = s.strip().replace(",", "").replace("$", "")
-    s = s.replace("(", "-").replace(")", "")
-    try:
-        return float(s)
-    except ValueError:
-        return 0.0
-
 
 def _parse_holdings(text):
     """Extract stock holdings from COMMON STOCKS section."""
@@ -135,15 +130,15 @@ def _parse_holdings(text):
     for m in holding_pat.finditer(section):
         description = m.group(1).strip()
         symbol = m.group(2)
-        quantity = _clean(m.group(3))
-        price = _clean(m.group(4))
-        cost_basis = _clean(m.group(5))
-        market_value = _clean(m.group(6))
+        quantity = clean_amount(m.group(3))
+        price = clean_amount(m.group(4))
+        cost_basis = clean_amount(m.group(5))
+        market_value = clean_amount(m.group(6))
         gl_str = m.group(7)
 
         # Check if gain/loss was in parentheses (negative)
         raw = section[m.start(7) - 2: m.end(7) + 1] if m.start(7) >= 2 else ""
-        gain_loss = _clean(gl_str)
+        gain_loss = clean_amount(gl_str)
         if "(" in raw and ")" in raw:
             gain_loss = -abs(gain_loss)
 
@@ -171,12 +166,12 @@ def _parse_holdings(text):
             after = line[ticker_m.end():]
             nums = re.findall(r"\$?\(?[\d,]+\.\d+\)?", after)
             if len(nums) >= 5:
-                quantity = _clean(nums[0])
-                price = _clean(nums[1])
-                cost_basis = _clean(nums[2])
-                market_value = _clean(nums[3])
+                quantity = clean_amount(nums[0])
+                price = clean_amount(nums[1])
+                cost_basis = clean_amount(nums[2])
+                market_value = clean_amount(nums[3])
                 gl_raw = nums[4]
-                gain_loss = _clean(gl_raw)
+                gain_loss = clean_amount(gl_raw)
                 if "(" in gl_raw:
                     gain_loss = -abs(gain_loss)
 
@@ -232,10 +227,10 @@ def _parse_rsu_grants(text):
             "grant_number": m.group(2),
             "type": m.group(3),
             "symbol": m.group(4),
-            "quantity": _clean(m.group(5)),
-            "grant_price": _clean(m.group(6)),
-            "market_price": _clean(m.group(7)),
-            "estimated_value": _clean(m.group(8)),
+            "quantity": clean_amount(m.group(5)),
+            "grant_price": clean_amount(m.group(6)),
+            "market_price": clean_amount(m.group(7)),
+            "estimated_value": clean_amount(m.group(8)),
         })
 
     return grants
@@ -255,8 +250,8 @@ def _parse_stock_plan_summary(text):
         text,
     )
     if rs_match:
-        summary["potential_value"] = _clean(rs_match.group(1))
-        summary["total_value"] = _clean(rs_match.group(2))
+        summary["potential_value"] = clean_amount(rs_match.group(1))
+        summary["total_value"] = clean_amount(rs_match.group(2))
 
     # Check for ESPP
     espp_match = re.search(
@@ -264,7 +259,7 @@ def _parse_stock_plan_summary(text):
         text,
     )
     if espp_match:
-        summary["espp_value"] = _clean(espp_match.group(1))
+        summary["espp_value"] = clean_amount(espp_match.group(1))
 
     return summary
 
@@ -290,8 +285,8 @@ def _parse_vestings(text, year):
     for m in vest_pat.finditer(section):
         date_str = m.group(1)
         security = m.group(2).strip()
-        quantity = _clean(m.group(3))
-        amount = _clean(m.group(4))
+        quantity = clean_amount(m.group(3))
+        amount = clean_amount(m.group(4))
 
         month_num, day_num = date_str.split("/")
         try:
@@ -321,7 +316,7 @@ def _parse_interest(text, year):
     for m in int_pat.finditer(text):
         date_str = m.group(1)
         description = m.group(2).strip()
-        amount = _clean(m.group(3))
+        amount = clean_amount(m.group(3))
 
         month_num, day_num = date_str.split("/")
         try:

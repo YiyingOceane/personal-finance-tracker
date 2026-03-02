@@ -6,6 +6,7 @@ from datetime import datetime
 import pdfplumber
 
 from categorizer import categorize
+from parse_utils import clean_amount_unsigned
 
 
 def is_hsa_pdf(filepath):
@@ -14,6 +15,8 @@ def is_hsa_pdf(filepath):
         with pdfplumber.open(filepath) as pdf:
             text = pdf.pages[0].extract_text() or ""
         return "HealthEquity" in text and "Account Statement" in text
+    except (FileNotFoundError, PermissionError):
+        raise
     except Exception:
         return False
 
@@ -45,11 +48,11 @@ def parse_hsa_pdf(filepath):
     # Beginning and ending balance
     beg_match = re.search(r"BeginningBalance\s+\$?([\d,]+\.\d{2})", first_page)
     end_match = re.search(r"EndingBalance\s+\$?([\d,]+\.\d{2})", first_page)
-    beginning_balance = _clean(beg_match.group(1)) if beg_match else 0
-    ending_balance = _clean(end_match.group(1)) if end_match else 0
+    beginning_balance = clean_amount_unsigned(beg_match.group(1)) if beg_match else 0
+    ending_balance = clean_amount_unsigned(end_match.group(1)) if end_match else 0
 
-    # Parse transactions
-    transactions = _parse_transactions(first_page)
+    # Parse transactions (scan all pages — transactions can overflow page 1)
+    transactions = _parse_transactions(full_text)
 
     # Compute totals from transactions
     contributions = sum(t["amount"] for t in transactions if t["category"] == "Contribution")
@@ -128,7 +131,7 @@ def _parse_transactions(text):
 
         raw_amount = all_nums[-2]
         is_withdrawal = raw_amount.startswith("(")
-        amount_val = _clean(raw_amount.replace("(", "").replace(")", ""))
+        amount_val = clean_amount_unsigned(raw_amount.replace("(", "").replace(")", ""))
 
         if is_withdrawal:
             amount = -amount_val
@@ -198,8 +201,8 @@ def _parse_investments(pages_text):
                 investments.append({
                     "symbol": inv_match.group(1),
                     "shares": float(inv_match.group(2)),
-                    "price": _clean(inv_match.group(3)),
-                    "value": _clean(inv_match.group(4)),
+                    "price": clean_amount_unsigned(inv_match.group(3)),
+                    "value": clean_amount_unsigned(inv_match.group(4)),
                 })
 
     return investments
@@ -218,6 +221,3 @@ def _clean_description(desc):
     return desc
 
 
-def _clean(s):
-    """Clean a number string."""
-    return float(s.replace(",", "").replace("$", "").replace("(", "").replace(")", "").strip())
