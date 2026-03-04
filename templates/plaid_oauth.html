@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+<script>
+  // Re-initialize Link with the redirect URI after OAuth bank redirect
+  fetch('/plaid/link-token')
+    .then(r => r.json())
+    .then(({ link_token }) => {
+      const handler = Plaid.create({
+        token: link_token,
+        receivedRedirectUri: window.location.href,
+        onSuccess: (public_token, metadata) => {
+          fetch('/plaid/exchange-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ public_token }),
+          })
+          .then(r => r.json())
+          .then(data => {
+            window.location.href = '/import?connected=' + encodeURIComponent(data.institution || 'bank');
+          });
+        },
+        onExit: () => { window.location.href = '/import'; },
+      });
+      handler.open();
+    });
+</script>
+<div style="padding: 3rem; text-align: center; color: var(--text-muted);">
+  Completing bank connection…
+</div>
+{% endblock %}
