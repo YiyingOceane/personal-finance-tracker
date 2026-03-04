@@ -1,9 +1,151 @@
 {% extends "base.html" %}
 {% block content %}
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <div class="page-header">
     <h2>Import</h2>
     <span class="muted" style="font-size: 0.85rem;">PDF &amp; CSV auto-detection</span>
 </div>
+
+<div class="card animate-in" style="margin-bottom: 1rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <div>
+      <h3 style="margin: 0;">Connect a Bank</h3>
+      <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.25rem 0 0;">
+        Link accounts via Plaid for automatic transaction sync.
+      </p>
+    </div>
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+      <button id="plaid-sync-btn" class="btn" style="font-size:0.85rem;">Sync Transactions</button>
+      <button id="plaid-balance-btn" class="btn" style="font-size:0.85rem;">Sync Balances</button>
+      <button id="plaid-invest-btn" class="btn" style="font-size:0.85rem;">Sync Investments</button>
+      <button id="plaid-link-btn" class="btn btn-primary" style="font-size:0.85rem;">+ Connect a Bank</button>
+    </div>
+  </div>
+  <div id="plaid-linked" style="font-size: 0.85rem; color: var(--text-muted);">Loading linked accounts…</div>
+  <div id="plaid-status" style="font-size: 0.85rem; margin-top: 0.5rem;"></div>
+</div>
+
+<script>
+  fetch('/plaid/linked-accounts')
+    .then(r => r.json())
+    .then(({ items }) => {
+      const el = document.getElementById('plaid-linked');
+      if (!items.length) {
+        el.textContent = 'No linked accounts yet.';
+      } else {
+        el.innerHTML = items.map(i => `
+          <span style="margin-right:1.25rem;">
+            ${i.needs_relink
+              ? `<span style="color:var(--negative);">&#9888; ${i.institution}</span>
+                 <a href="#" onclick="relinkItem(${i.id}, event)"
+                    style="font-size:0.75rem; margin-left:0.4rem; color:var(--negative); font-weight:600;">Fix connection</a>`
+              : `<span style="color:var(--positive);">&#10003; ${i.institution}</span>`
+            }
+            <a href="#" onclick="disconnectItem(${i.id}, '${i.institution}', event)"
+               style="font-size:0.7rem; margin-left:0.5rem; color:var(--text-muted);">Disconnect</a>
+          </span>
+        `).join('');
+      }
+    });
+
+  document.getElementById('plaid-link-btn').addEventListener('click', () => {
+    fetch('/plaid/link-token')
+      .then(r => r.json())
+      .then(({ link_token, error }) => {
+        if (error) { alert('Error: ' + error); return; }
+        const handler = Plaid.create({
+          token: link_token,
+          onSuccess: (public_token, metadata) => {
+            fetch('/plaid/exchange-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ public_token }),
+            })
+            .then(r => r.json())
+            .then(data => {
+              document.getElementById('plaid-status').innerHTML =
+                `<span style="color:var(--positive);">&#10003; Connected: ${data.institution}</span>`;
+              location.reload();
+            });
+          },
+          onExit: (err) => { if (err) console.error(err); },
+        });
+        handler.open();
+      });
+  });
+
+  document.getElementById('plaid-sync-btn').addEventListener('click', () => {
+    const status = document.getElementById('plaid-status');
+    status.textContent = 'Syncing…';
+    fetch('/plaid/sync', { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          status.innerHTML = `<span style="color:var(--negative);">Error: ${data.error}</span>`;
+        } else {
+          status.innerHTML = `<span style="color:var(--positive);">&#10003; Synced — ${data.total_added} new transactions added</span>`;
+        }
+      });
+  });
+
+  document.getElementById('plaid-balance-btn').addEventListener('click', () => {
+    const status = document.getElementById('plaid-status');
+    status.textContent = 'Fetching balances…';
+    fetch('/plaid/sync-balances', { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          status.innerHTML = `<span style="color:var(--negative);">Error: ${data.error}</span>`;
+        } else {
+          status.innerHTML = `<span style="color:var(--positive);">&#10003; Updated ${data.total_updated} account balances</span>`;
+        }
+      });
+  });
+
+  document.getElementById('plaid-invest-btn').addEventListener('click', () => {
+    const status = document.getElementById('plaid-status');
+    status.textContent = 'Syncing investments…';
+    fetch('/plaid/sync-investments', { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        const summary = data.results.map(r =>
+          r.error ? `${r.institution}: error` : `${r.institution}: ${r.holdings} holdings, ${r.transactions} txns`
+        ).join(' · ');
+        status.innerHTML = `<span style="color:var(--positive);">&#10003; ${summary}</span>`;
+      });
+  });
+
+  function relinkItem(itemId, e) {
+    e.preventDefault();
+    const status = document.getElementById('plaid-status');
+    status.textContent = 'Opening re-authentication…';
+    fetch('/plaid/relink/' + itemId)
+      .then(r => r.json())
+      .then(({ link_token, error }) => {
+        if (error) { status.textContent = 'Error: ' + error; return; }
+        const handler = Plaid.create({
+          token: link_token,
+          onSuccess: () => {
+            fetch('/plaid/clear-relink/' + itemId, { method: 'POST' })
+              .then(() => {
+                status.innerHTML = '<span style="color:var(--positive);">&#10003; Re-authenticated successfully</span>';
+                location.reload();
+              });
+          },
+          onExit: (err) => { if (err) console.error(err); },
+        });
+        handler.open();
+      });
+  }
+
+  function disconnectItem(itemId, name, e) {
+    e.preventDefault();
+    if (!confirm(`Disconnect ${name}? This will stop syncing transactions from this account.`)) return;
+    fetch('/plaid/disconnect/' + itemId, { method: 'POST' })
+      .then(r => r.json())
+      .then(() => location.reload());
+  }
+</script>
 
 {% if checklist %}
 <div class="card animate-in" style="margin-bottom: 1rem;">
