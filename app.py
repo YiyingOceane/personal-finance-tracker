@@ -25,9 +25,18 @@ from importer import (
 from categorizer import categorize, get_all_categories
 from models import (
     Account, Balance, CategoryRule, CsvProfile, Holding, HsaSummary,
-    InvestmentActivity, Mortgage, StockPlanGrant, Transaction, VestingEvent,
+    InvestmentActivity, Mortgage, PlaidItem, StockPlanGrant, Transaction, VestingEvent,
 )
 from pdf_importer import parse_pdf
+import certifi
+os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+from plaid_client import get_plaid_client
+from plaid_importer import (
+    create_link_token, exchange_public_token,
+    get_institution_name, sync_transactions,
+    sync_balances, sync_holdings, sync_investment_transactions,
+    create_relink_token,
+)
 
 
 def create_app(test_config=None):
@@ -1649,6 +1658,175 @@ def create_app(test_config=None):
 
         session.close()
         return jsonify({"hsa": hsa_data})
+
+    # ── Plaid ──────────────────────────────────────────────────────────
+    @app.route("/plaid/link-token")
+    def plaid_link_token():
+        """Return a fresh link_token for Plaid Link initialization."""
+        try:
+            client = get_plaid_client()
+            token = create_link_token(client)
+            return jsonify({"link_token": token})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/plaid/exchange-token", methods=["POST"])
+    def plaid_exchange_token():
+        """Exchange public_token → access_token, save PlaidItem."""
+        data = request.get_json()
+        public_token = data.get("public_token")
+        if not public_token:
+            return jsonify({"error": "missing public_token"}), 400
+        try:
+            client = get_plaid_client()
+            access_token, item_id = exchange_public_token(client, public_token)
+            institution_id, institution_name = get_institution_name(client, item_id, access_token)
+            session = get_db()
+            existing = session.query(PlaidItem).filter_by(item_id=item_id).first()
+            if not existing:
+                item = PlaidItem(
+                    item_id=item_id,
+                    access_token=access_token,
+                    institution_id=institution_id,
+                    institution_name=institution_name,
+                )
+                session.add(item)
+                session.commit()
+            session.close()
+            return jsonify({"status": "ok", "institution": institution_name})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/plaid/sync", methods=["POST"])
+    def plaid_sync():
+        """Sync new transactions for all linked Plaid items."""
+        session = get_db()
+        items = session.query(PlaidItem).all()
+        if not items:
+            session.close()
+            return jsonify({"status": "no linked accounts"})
+        client = get_plaid_client()
+        total = 0
+        results = []
+        for item in items:
+            try:
+                count = sync_transactions(client, item, session)
+                total += count
+                results.append({"institution": item.institution_name, "added": count})
+            except Exception as e:
+                results.append({"institution": item.institution_name, "error": str(e)})
+        session.close()
+        return jsonify({"total_added": total, "results": results})
+
+    @app.route("/plaid/sync-balances", methods=["POST"])
+    def plaid_sync_balances():
+        """Fetch real-time balances for all linked accounts."""
+        session = get_db()
+        items = session.query(PlaidItem).all()
+        if not items:
+            session.close()
+            return jsonify({"status": "no linked accounts"})
+        client = get_plaid_client()
+        total = 0
+        results = []
+        for item in items:
+            try:
+                count = sync_balances(client, item, session)
+                total += count
+                results.append({"institution": item.institution_name, "updated": count})
+            except Exception as e:
+                results.append({"institution": item.institution_name, "error": str(e)})
+        session.close()
+        return jsonify({"total_updated": total, "results": results})
+
+    @app.route("/plaid/sync-investments", methods=["POST"])
+    def plaid_sync_investments():
+        """Sync investment holdings and transactions for all linked accounts."""
+        session = get_db()
+        items = session.query(PlaidItem).all()
+        if not items:
+            session.close()
+            return jsonify({"status": "no linked accounts"})
+        client = get_plaid_client()
+        results = []
+        for item in items:
+            try:
+                holdings = sync_holdings(client, item, session)
+                txns = sync_investment_transactions(client, item, session)
+                results.append({"institution": item.institution_name, "holdings": holdings, "transactions": txns})
+            except Exception as e:
+                results.append({"institution": item.institution_name, "error": str(e)})
+        session.close()
+        return jsonify({"results": results})
+
+    @app.route("/plaid/oauth-callback")
+    def plaid_oauth_callback():
+        """Handle OAuth redirect from banks like Chase."""
+        return render_template("plaid_oauth.html")
+
+    @app.route("/plaid/linked-accounts")
+    def plaid_linked_accounts():
+        """Return list of linked Plaid institutions."""
+        session = get_db()
+        items = session.query(PlaidItem).all()
+        result = [
+            {
+                "id": i.id,
+                "institution": i.institution_name,
+                "needs_relink": bool(i.needs_relink),
+                "synced": bool(i.transactions_cursor),
+            }
+            for i in items
+        ]
+        session.close()
+        return jsonify({"items": result})
+
+    @app.route("/plaid/relink/<int:item_id>")
+    def plaid_relink_token(item_id):
+        """Return a link_token for update mode for a specific Item."""
+        session = get_db()
+        item = session.query(PlaidItem).filter_by(id=item_id).first()
+        session.close()
+        if not item:
+            return jsonify({"error": "item not found"}), 404
+        try:
+            client = get_plaid_client()
+            token = create_relink_token(client, item.access_token)
+            return jsonify({"link_token": token})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/plaid/clear-relink/<int:item_id>", methods=["POST"])
+    def plaid_clear_relink(item_id):
+        """Clear needs_relink flag after successful update mode."""
+        session = get_db()
+        item = session.query(PlaidItem).filter_by(id=item_id).first()
+        if not item:
+            session.close()
+            return jsonify({"error": "item not found"}), 404
+        item.needs_relink = 0
+        session.commit()
+        session.close()
+        return jsonify({"status": "ok"})
+
+    @app.route("/plaid/disconnect/<int:item_id>", methods=["POST"])
+    def plaid_disconnect(item_id):
+        """Call /item/remove on Plaid, then delete the PlaidItem from DB."""
+        from plaid.model.item_remove_request import ItemRemoveRequest
+        session = get_db()
+        item = session.query(PlaidItem).filter_by(id=item_id).first()
+        if not item:
+            session.close()
+            return jsonify({"error": "item not found"}), 404
+        try:
+            client = get_plaid_client()
+            client.item_remove(ItemRemoveRequest(access_token=item.access_token))
+        except Exception:
+            pass  # If Plaid call fails, still remove locally
+        session.delete(item)
+        session.commit()
+        session.close()
+        return jsonify({"status": "disconnected"})
 
     return app
 
